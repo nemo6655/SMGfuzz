@@ -1,15 +1,23 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 
 # Install common dependencies
 RUN apt-get -y update && \
-    apt-get -y install sudo \ 
+    apt-get -y install sudo \
     apt-utils \
     build-essential \
     openssl \
     clang \
     graphviz-dev \
     git \
-    libgnutls-dev
+    libgnutls28-dev
+
+RUN apt-get -y install libc6-dbg glibc-source libasan4-dbg gcc-7-source vim
+
+RUN apt-get -y install sudo apt-utils build-essential openssl clang \
+    libgraphviz-dev git libgnutls28-dev ntp libseccomp-dev libtool gettext \
+    libssl-dev pkg-config libini-config-dev autoconf \
+    linux-tools-common linux-tools-generic linux-cloud-tools-generic llvm tcl \
+    efibootmgr python3-pip rustc rust-src cmake
 
 # Add a new user ubuntu, pass: ubuntu
 RUN groupadd ubuntu && \
@@ -20,12 +28,12 @@ USER ubuntu
 WORKDIR /home/ubuntu
 
 # Download and compile AFLNet
-ENV LLVM_CONFIG="llvm-config-3.8"
+ENV LLVM_CONFIG="llvm-config-6.0"
 
-RUN git clone https://github.com/aflnet/aflnet && \
+RUN git clone https://github.com/andronat/aflnet && \
     cd aflnet && \
     make clean all && \
-    cd llvm_mode make && make
+    cd llvm_mode && make
 
 # Set up environment variables for AFLNet
 ENV AFLNET="/home/ubuntu/aflnet"
@@ -49,3 +57,12 @@ RUN cd /home/ubuntu/LightFTP/Source/Release && \
     cp ${AFLNET}/tutorials/lightftp/ftpclean.sh ./ && \
     cp -r ${AFLNET}/tutorials/lightftp/certificate ~/ && \
     mkdir ~/ftpshare
+
+# Download and compile SaBRe
+RUN cd /home/ubuntu && \
+    git clone --single-branch --branch snapfuzz_2.0 https://github.com/andronat/SaBRe.git && \
+    cd SaBRe && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make
