@@ -104,7 +104,8 @@ EXP_ST u8 *in_dir,                    /* Input directory with test cases  */
           *in_bitmap,                 /* Input bitmap                     */
           *doc_path,                  /* Path to documentation dir        */
           *target_path,               /* Path to target binary            */
-          *orig_cmdline;              /* Original command line            */
+          *orig_cmdline,              /* Original command line            */
+          *sbr_plugin_path;           /* Path to SaBRe's plugin to load   */
 
 EXP_ST u32 exec_tmout = EXEC_TIMEOUT; /* Configurable exec timeout (ms)   */
 static u32 hang_tmout = EXEC_TIMEOUT; /* Timeout used for hang det (ms)   */
@@ -133,6 +134,7 @@ EXP_ST u8  skip_deterministic,        /* Skip deterministic stages?       */
            shuffle_queue,             /* Shuffle input queue?             */
            bitmap_changed = 1,        /* Time to update bitmap?           */
            qemu_mode,                 /* Running in QEMU mode?            */
+           sbr_mode,                  /* Running in SaBRe mode?           */
            skip_requested,            /* Skip request, via SIGUSR1        */
            run_over10m,               /* Run time over 10 minutes?        */
            persistent_mode,           /* Running in persistent mode?      */
@@ -1032,7 +1034,7 @@ int send_over_network()
   serv_addr.sin_addr.s_addr = inet_addr(net_ip);
 
   //This piece of code is only used for targets that send responses to a specific port number
-  //The Kamailio SIP server is an example. After running this code, the intialized sockfd 
+  //The Kamailio SIP server is an example. After running this code, the intialized sockfd
   //will be bound to the given local port
   if(local_port > 0) {
     local_serv_addr.sin_family = AF_INET;
@@ -4283,7 +4285,7 @@ static void write_stats_file(double bitmap_cvg, double stability, double eps) {
              "exec_timeout      : %u\n" /* Must match find_timeout() */
              "afl_banner        : %s\n"
              "afl_version       : " VERSION "\n"
-             "target_mode       : %s%s%s%s%s%s%s\n"
+             "target_mode       : %s%s%s%s%s%s%s%s\n"
              "command_line      : %s\n"
              "slowest_exec_ms   : %llu\n",
              start_time / 1000, get_cur_time() / 1000, getpid(),
@@ -4294,10 +4296,10 @@ static void write_stats_file(double bitmap_cvg, double stability, double eps) {
              unique_hangs, last_path_time / 1000, last_crash_time / 1000,
              last_hang_time / 1000, total_execs - last_crash_execs,
              exec_tmout, use_banner,
-             qemu_mode ? "qemu " : "", dumb_mode ? " dumb " : "",
+             qemu_mode ? "qemu " : "", sbr_mode ? "sabre " : "", dumb_mode ? " dumb " : "",
              no_forkserver ? "no_forksrv " : "", crash_mode ? "crash " : "",
              persistent_mode ? "persistent " : "", deferred_mode ? "deferred " : "",
-             (qemu_mode || dumb_mode || no_forkserver || crash_mode ||
+             (qemu_mode || sbr_mode || dumb_mode || no_forkserver || crash_mode ||
               persistent_mode || deferred_mode) ? "" : "default",
              orig_cmdline, slowest_exec_ms);
              /* ignore errors */
@@ -8630,6 +8632,19 @@ EXP_ST void setup_signal_handlers(void) {
 
 }
 
+/* Rewrite argv for SaBRe. */
+
+static char** get_sbr_argv(char** argv, int argc) {
+  char** new_argv = ck_alloc(sizeof(char*) * (argc + 3 + 1));
+
+  memcpy(new_argv + 3, argv, sizeof(char*) * argc);
+
+  new_argv[2] = "--";
+  new_argv[1] = sbr_plugin_path;
+  target_path = new_argv[0] = ck_strdup("./sabre");
+
+  return new_argv;
+}
 
 /* Rewrite argv for QEMU. */
 
@@ -8756,7 +8771,7 @@ int main(int argc, char** argv) {
   gettimeofday(&tv, &tz);
   srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
 
-  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:QN:D:W:w:P:KEq:s:RFc:l:")) > 0)
+  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:QN:A:D:W:w:P:KEq:s:RFc:l:")) > 0)
 
     switch (opt) {
 
@@ -8924,6 +8939,13 @@ int main(int argc, char** argv) {
 
         break;
 
+      case 'A': /* SaBRe mode */
+        if (sbr_mode) FATAL("Multiple -A options not supported");
+        sbr_plugin_path = optarg;
+
+        sbr_mode = 1;
+        break;
+
       case 'N': /* Network configuration */
         if (use_net) FATAL("Multiple -N options not supported");
         if (parse_net_config(optarg, &net_protocol, &net_ip, &net_port)) FATAL("Bad syntax used for -N. Check the network setting. [tcp/udp]://127.0.0.1/port");
@@ -9048,7 +9070,7 @@ int main(int argc, char** argv) {
   if (optind == argc || !in_dir || !out_dir) usage(argv[0]);
 
   //AFLNet - Check for required arguments
-  if (!use_net) FATAL("Please specify network information of the server under test (e.g., tcp://127.0.0.1/8554)");
+  if (!use_net && !sbr_mode) FATAL("Please specify network information of the server under test (e.g., tcp://127.0.0.1/8554)");
 
   if (!protocol_selected) FATAL("Please specify the protocol to be tested using the -P option");
 
@@ -9128,7 +9150,9 @@ int main(int argc, char** argv) {
 
   start_time = get_cur_time();
 
-  if (qemu_mode)
+  if (sbr_mode)
+    use_argv = get_sbr_argv(argv + optind, argc - optind);
+  else if (qemu_mode)
     use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
   else
     use_argv = argv + optind;
