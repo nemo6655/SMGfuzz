@@ -58,6 +58,24 @@ RUN cd /home/ubuntu/LightFTP/Source/Release && \
     cp -r ${AFLNET}/tutorials/lightftp/certificate ~/ && \
     mkdir ~/ftpshare
 
+RUN cd /home/ubuntu && \
+    V="1.0.18" && \
+    wget "https://download.libsodium.org/libsodium/releases/libsodium-${V}.tar.gz" && \
+    tar xzf "libsodium-${V}.tar.gz" && \
+    cd "libsodium-${V}" && \
+    ./configure && \
+    make && make check && \
+    sudo make install
+
+RUN cd /home/ubuntu && \
+    git clone https://github.com/zboxfs/zbox-c && \
+    cd zbox-c && \
+    mkdir -p m4 && \
+    ./autogen.sh && \
+    ./configure && \
+    make && make check && \
+    sudo make install
+
 # Download and compile SaBRe
 RUN cd /home/ubuntu && \
     git clone --single-branch --branch snapfuzz_2.0 https://github.com/andronat/SaBRe.git && \
@@ -66,3 +84,6 @@ RUN cd /home/ubuntu && \
     cd build && \
     cmake .. && \
     make
+
+# cp ~/snapfuzz/SaBRe/build/sabre .
+# cp ~/snapfuzz/SaBRe/build/plugins/sbr-zbox/libsbr-zbox.so .
