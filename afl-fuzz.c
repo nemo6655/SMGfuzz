@@ -1007,36 +1007,50 @@ static boolean target_is_dead() {
   return FALSE;
 }
 
+static TargetAction poll_action() {
+  TargetAction ta = {0};
+  int rc, periodic_check = 0;
+  do {
+    rc = recv(sbr_ctl_fd, &ta, sizeof(TargetAction), MSG_DONTWAIT);
+    // TODO: Check for: EAGAIN, EWOULDBLOCK, EINTR?
+    periodic_check++;
+    if (periodic_check == 5) {
+      if (target_is_dead()) {
+        return Timeout;
+      }
+      periodic_check = 0;
+    }
+    if (child_timed_out) {
+      return Timeout;
+    }
+    if (stop_soon) {
+      return ExitGroup;
+    }
+  } while (rc <= 0);
+  return ta;
+}
+
 static boolean target_accepts_connections() {
   // Did we crash before we even started?
   if (target_is_dead()) {
     return FALSE;
   }
 
-  TargetAction ta = {0};
-  int rc = recv(sbr_ctl_fd, &ta, sizeof(TargetAction), 0);
-  if (rc <= 0) { // recv timeout
-    // Application crashed, too slow or killed by ctrl+c.
-    return FALSE;
-  }
-
+  TargetAction ta = poll_action();
   if (ta == Accept) {
     return TRUE;
-  } else if (ta == ExitGroup) {
-    // There might be some weird case that the server exited instantly, or there
-    // are remnants from a previous iteration.
-    if (target_is_dead()) { // Process is dead.
-      return FALSE;
-    } else { // Maybe this message came from a previous iteration. Try again.
-      return target_accepts_connections();
-    }
+  } else if (ta == ExitGroup || ta == Timeout) {
+    return FALSE;
   }
 
   PFATAL("AFLNet-sbr expected an accept. Got action: %d", ta);
 }
 
+static void emulate_disconnect() {
+  send(sbr_data_fd, "", 0, MSG_NOSIGNAL|MSG_DONTWAIT);
+}
+
 static void drain_pending_msgs() {
-  int tries = 0;
   char buf[1000] = {0};
   TargetAction ta = {0};
   int rc, rc2;
@@ -1049,37 +1063,22 @@ static void drain_pending_msgs() {
 
     if (target_is_dead()) {
       return;
-    }
-
-    tries++;
-    if (tries >= 200) {
-      // TODO(andronat): How long should we wait?
-      // WARNF("drain_pending_msgs waited too long");
+    } else if (terminate_child && (child_pid > 0)) {
+      // TODO: Technically there is a race condition for when child_pid dies,
+      // the OS could possibly recycle the pid and we will be waiting (or worse,
+      // killing) an unrelated to us process.
+      kill(child_pid, SIGTERM);
+    } else if (child_timed_out || stop_soon) {
       return;
     }
   }
 }
 
 TargetAction target_will_do() {
-  TargetAction ta = {0};
-  int rc = recv(sbr_ctl_fd, &ta, sizeof(TargetAction), 0);
-  if (rc <= 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
-      // TOKF("target_will_do: timout");
-      // Probably we had a hang
-      return Timeout;
-    } else {
-      PFATAL("target_will_do existed with unknown errno: %d", errno);
-    }
-  }
-
-  if (ta == Accept) {
+  TargetAction ta = poll_action();
+  if (ta == Accept)
     PFATAL("SaBRe protocol: out of sync.");
-  } else if (ta == Send || ta == Recv || ta == ExitGroup) {
-    return ta;
-  } else {
-    PFATAL("SaBRe protocol: unknown command.");
-  }
+  return ta;
 }
 
 int send_over_network_sbr() {
@@ -1125,7 +1124,7 @@ int send_over_network_sbr() {
     } else if (ta == Timeout || ta == ExitGroup) {
       goto HANDLE_RESPONSES;
     } else {
-      PFATAL("Unexpected TargetAction");
+      PFATAL("Unexpected TargetAction: %d", ta);
     }
   } while (ta == GetNext);
 
@@ -1136,6 +1135,16 @@ int send_over_network_sbr() {
     if (ta == Recv) {
       ta = GetNext;
       n = net_send_sbr(sbr_data_fd, kl_val(it)->mdata, kl_val(it)->msize);
+      if (n != kl_val(it)->msize) {
+        if ((n == -1) && (errno == EMSGSIZE)) {
+          // WARNF("SOCK_SEQPACKET doesn't support such long msgs: %u", kl_val(it)->msize);
+        } else {
+          WARNF("Failed to send msg with length: %u, actual: %d, errno: %s", kl_val(it)->msize, n, strerror(errno));
+        }
+        emulate_disconnect();
+        // ta = target_will_do();
+        goto HANDLE_RESPONSES;
+      }
       messages_sent++;
     } else {
       PFATAL("Unexpected TargetAction: %d", ta);
@@ -1143,11 +1152,6 @@ int send_over_network_sbr() {
 
     // Allocate memory to store new accumulated response buffer size
     response_bytes = (u32 *)ck_realloc(response_bytes, messages_sent * sizeof(u32));
-
-    // Jump out if something wrong leading to incomplete message sent
-    if (n != kl_val(it)->msize) {
-      goto HANDLE_RESPONSES;
-    }
 
     // retrieve server response
     u32 prev_buf_size = response_buf_size;
@@ -1164,13 +1168,16 @@ int send_over_network_sbr() {
       } else if (ta == ExitGroup) {
         goto HANDLE_RESPONSES;
       } else if (ta == Timeout) {
-        if (target_is_dead()) { // Did we crush?
-          response_bytes[messages_sent - 1] = response_buf_size;
+        response_bytes[messages_sent - 1] = response_buf_size;
+        if (prev_buf_size == response_buf_size)
           likely_buggy = 1;
-          goto HANDLE_RESPONSES;
-        } else { // Or we are just slow? Let's try again ¯\_(ツ)_/¯
-          ta = GetNext;
-        }
+        else
+          likely_buggy = 0;
+        goto HANDLE_RESPONSES;
+      } else if (ta == Recv) {
+        // Target is ready to accept msgs. Go to next iteration.
+      } else {
+        PFATAL("Unexpected TargetAction: %d", ta);
       }
     } while (ta == GetNext);
 
@@ -1186,6 +1193,13 @@ int send_over_network_sbr() {
       likely_buggy = 0;
   }
 
+  // We are done with messages, let's close the connection.
+  if (ta == Recv) {
+    emulate_disconnect();
+  } else {
+    PFATAL("We are exiting with action: %d", ta);
+  }
+
 HANDLE_RESPONSES:
   // Drain sockets and check for remnants
   drain_pending_msgs();
@@ -1197,18 +1211,6 @@ HANDLE_RESPONSES:
   if (likely_buggy && false_negative_reduction)
     return 0;
 
-  if (terminate_child && (child_pid > 0))
-    kill(child_pid, SIGTERM);
-
-  // give the server a bit more time to gracefully terminate
-  while (target_is_dead() == FALSE) {
-    if (terminate_child && (child_pid > 0))
-      kill(child_pid, SIGTERM);
-  }
-  // while (1) {
-  //   if (target_is_dead())
-  //     break;
-  // }
   drain_pending_msgs();
 
   return 0;

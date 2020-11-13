@@ -1696,11 +1696,7 @@ int net_send_sbr(int sockfd, char *mem, unsigned int len)
 {
   // TODO(andronat): Do we need MSG_EOR and MSG_DONTWAIT?
   // TODO(andronat): Warn user if /proc/sys/net/core/wmem_default is too small.
-  int n = send(sockfd, mem, len, MSG_NOSIGNAL);
-  if ((n == -1) && (errno == EMSGSIZE)) {
-    WARNF("SOCK_SEQPACKET can't support such long msgs: %u", len);
-  }
-  return n;
+  return send(sockfd, mem, len, MSG_NOSIGNAL);
 }
 
 // TODO(andronat): temp_buf should equal to /proc/sys/net/core/rmem_default.
