@@ -169,7 +169,7 @@
 
 #ifdef MESSAGES_TO_STDOUT
 #  define SAYF(x...)    printf(x)
-#else 
+#else
 #  define SAYF(x...)    fprintf(stderr, x)
 #endif /* ^MESSAGES_TO_STDOUT */
 
@@ -186,6 +186,18 @@
     SAYF(cLBL "[*] " cRST x); \
     SAYF(cRST "\n"); \
   } while (0)
+
+#ifdef PRINT_BENCH
+#define TOKF(x...)                                                             \
+  do {                                                                         \
+    SAYF(cLGN "[+] TASO " cRST x);                                             \
+    SAYF(cRST "\n");                                                           \
+  } while (0)
+#else
+#define TOKF(x...)                                                             \
+  do {                                                                         \
+  } while (0)
+#endif
 
 /* Show a prefixed "success" message. */
 

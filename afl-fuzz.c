@@ -985,6 +985,18 @@ void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
   if (state_sequence) ck_free(state_sequence);
 }
 
+#ifdef PRINT_BENCH
+static double get_current_time() {
+  struct timeval t;
+  gettimeofday(&t, 0);
+  return t.tv_sec + t.tv_usec*1e-6;
+}
+#else
+static double get_current_time() {
+  return 0.0;
+}
+#endif
+
 // NOTE: This needs to be in sync with SaBRe.
 typedef enum {
   GetNext = -2,
@@ -1031,6 +1043,11 @@ static TargetAction poll_action() {
 }
 
 static boolean target_accepts_connections() {
+  // TODO(andronat): benchmark. I didn't see a difference.
+  // do {
+  //   rc = recv(sbr_ctl_fd, &ta, sizeof(TargetAction), MSG_DONTWAIT);
+  // } while (rc <= 0);
+
   // Did we crash before we even started?
   if (target_is_dead()) {
     return FALSE;
@@ -1081,6 +1098,15 @@ TargetAction target_will_do() {
   return ta;
 }
 
+// TODO: Possible optimizations
+//       - Don't block on sbr_ctr_fd, try to loop (Done)
+//       - 2x drain_pending_msgs? We need them to clean channels
+//       - atomic sbr-protocol (Done)
+//       - kill sigkill vs sigterm vs 0
+//       - SEQ_protocol vs stream
+//       - New simpler inmem-FS
+//       - do we need ExitGroup afterall?
+
 int send_over_network_sbr() {
   u8 likely_buggy = 0;
 
@@ -1107,11 +1133,14 @@ int send_over_network_sbr() {
   setsockopt(sbr_data_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&to, sizeof(to));
   setsockopt(sbr_ctl_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&to, sizeof(to));
 
+  double bstart_time = get_current_time();
   if (target_accepts_connections() == FALSE) {
     goto HANDLE_RESPONSES;
   }
+  TOKF("0 Conn: %lf %s", get_current_time() - bstart_time, response_buf);
 
   // Retrieve early server response if needed.
+  bstart_time = get_current_time();
   TargetAction ta = {0};
   do {
     ta = target_will_do();
@@ -1127,10 +1156,12 @@ int send_over_network_sbr() {
       PFATAL("Unexpected TargetAction: %d", ta);
     }
   } while (ta == GetNext);
+  TOKF("1 Recv: %lf %s", get_current_time() - bstart_time, response_buf);
 
   // write the request messages
   messages_sent = 0;
   for (kliter_t(lms) *it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
+    bstart_time = get_current_time();
     int n = 0;
     if (ta == Recv) {
       ta = GetNext;
@@ -1149,6 +1180,7 @@ int send_over_network_sbr() {
     } else {
       PFATAL("Unexpected TargetAction: %d", ta);
     }
+    TOKF("2 Send: %lf %d msg: %s", get_current_time() - bstart_time, n, kl_val(it)->mdata);
 
     // Allocate memory to store new accumulated response buffer size
     response_bytes = (u32 *)ck_realloc(response_bytes, messages_sent * sizeof(u32));
@@ -1156,6 +1188,7 @@ int send_over_network_sbr() {
     // retrieve server response
     u32 prev_buf_size = response_buf_size;
 
+    bstart_time = get_current_time();
     do {
       if (ta == GetNext)
         ta = target_will_do();
@@ -1180,6 +1213,7 @@ int send_over_network_sbr() {
         PFATAL("Unexpected TargetAction: %d", ta);
       }
     } while (ta == GetNext);
+    TOKF("3 Recv: %lf %s", get_current_time() - bstart_time, response_buf);
 
     // Update accumulated response buffer size
     response_bytes[messages_sent - 1] = response_buf_size;
@@ -1202,7 +1236,9 @@ int send_over_network_sbr() {
 
 HANDLE_RESPONSES:
   // Drain sockets and check for remnants
+  bstart_time = get_current_time();
   drain_pending_msgs();
+  TOKF("4 Recv: %lf %s", get_current_time() - bstart_time, response_buf);
 
   if (messages_sent > 0 && response_bytes != NULL) {
     response_bytes[messages_sent - 1] = response_buf_size;
@@ -1211,7 +1247,9 @@ HANDLE_RESPONSES:
   if (likely_buggy && false_negative_reduction)
     return 0;
 
+  bstart_time = get_current_time();
   drain_pending_msgs();
+  TOKF("5 Kill: %lf\n%s", get_current_time() - bstart_time, response_buf);
 
   return 0;
 }
@@ -1242,6 +1280,7 @@ int send_over_network()
     response_bytes = NULL;
   }
 
+  double bstart_time = get_current_time();
   //Create a TCP/UDP socket
   int sockfd = -1;
   if (net_protocol == PRO_TCP)
@@ -1292,16 +1331,21 @@ int send_over_network()
       return 1;
     }
   }
+  TOKF("1 Conn: %lf", get_current_time() - bstart_time);
 
   //retrieve early server response if needed
+  bstart_time = get_current_time();
   if (net_recv(sockfd, timeout, poll_wait_msecs, &response_buf, &response_buf_size)) goto HANDLE_RESPONSES;
+  TOKF("1 Recv: %lf %s", get_current_time() - bstart_time, response_buf);
 
   //write the request messages
   kliter_t(lms) *it;
   messages_sent = 0;
 
   for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
+    bstart_time = get_current_time();
     n = net_send(sockfd, timeout, kl_val(it)->mdata, kl_val(it)->msize);
+    TOKF("2 Send: %lf %d msg: %s", get_current_time() - bstart_time, n, kl_val(it)->mdata);
     messages_sent++;
 
     //Allocate memory to store new accumulated response buffer size
@@ -1314,9 +1358,11 @@ int send_over_network()
 
     //retrieve server response
     u32 prev_buf_size = response_buf_size;
+    bstart_time = get_current_time();
     if (net_recv(sockfd, timeout, poll_wait_msecs, &response_buf, &response_buf_size)) {
       goto HANDLE_RESPONSES;
     }
+    TOKF("3 Recv: %lf %s", get_current_time() - bstart_time, response_buf);
 
     //Update accumulated response buffer size
     response_bytes[messages_sent - 1] = response_buf_size;
@@ -1329,7 +1375,9 @@ int send_over_network()
 
 HANDLE_RESPONSES:
 
+  bstart_time = get_current_time();
   net_recv(sockfd, timeout, poll_wait_msecs, &response_buf, &response_buf_size);
+  TOKF("4 Recv: %lf %s", get_current_time() - bstart_time, response_buf);
 
   if (messages_sent > 0 && response_bytes != NULL) {
     response_bytes[messages_sent - 1] = response_buf_size;
@@ -1345,6 +1393,7 @@ HANDLE_RESPONSES:
 
   if (likely_buggy && false_negative_reduction) return 0;
 
+  bstart_time = get_current_time();
   if (terminate_child && (child_pid > 0)) kill(child_pid, SIGTERM);
 
   //give the server a bit more time to gracefully terminate
@@ -1352,6 +1401,7 @@ HANDLE_RESPONSES:
     int status = kill(child_pid, 0);
     if ((status != 0) && (errno == ESRCH)) break;
   }
+  TOKF("5 Kill: %lf", get_current_time() - bstart_time);
 
   return 0;
 }
@@ -3539,9 +3589,13 @@ static u8 run_target(char** argv, u32 timeout) {
 
   } else {
     if (sbr_mode) {
+      double bstart_time = get_current_time();
       send_over_network_sbr();
+      TOKF("0 Total: %lf", get_current_time() - bstart_time);
     } else if (use_net) {
+      double bstart_time = get_current_time();
       send_over_network();
+      TOKF("0 Total: %lf", get_current_time() - bstart_time);
     }
     s32 res;
 
@@ -3566,6 +3620,13 @@ static u8 run_target(char** argv, u32 timeout) {
   setitimer(ITIMER_REAL, &it, NULL);
 
   total_execs++;
+#ifdef LONG_BENCH
+#else
+  if (total_execs == 1000000) {
+    OKF("Snapfuzz-bench: Done!");
+    raise(SIGINT);
+  }
+#endif
 
   /* Any subsequent operations on trace_bits must not be moved by the
      compiler below this point. Past this location, trace_bits[] behave
@@ -9400,7 +9461,10 @@ int main(int argc, char** argv) {
   get_core_count();
 
 #ifdef HAVE_AFFINITY
+#ifdef NOAFFIN_BENCH
+#else
   bind_to_free_cpu();
+#endif
 #endif /* HAVE_AFFINITY */
 
   check_crash_handling();
@@ -9438,6 +9502,11 @@ int main(int argc, char** argv) {
     use_argv = argv + optind;
 
   perform_dry_run(use_argv);
+
+#ifdef PRINT_BENCH
+  TOKF("Snapfuzz-bench-print: Done!");
+  raise(SIGINT);
+#endif
 
   cull_queue();
 

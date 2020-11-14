@@ -1715,6 +1715,11 @@ int net_recv_sbr(int sockfd, char **response_buf, unsigned int *len)
   return n;
 }
 
+// Q: Why did we implement the guiding system with sbr_ctl_fd?
+// A: This won't work... POLLOUT is always there even if socket is closed.
+// Curious case: if socket is closed, poll will return events and we need
+// to check send's errno and receieve will always return 0 len strings.
+
 // Utility function
 
 void save_regions_to_file(region_t *regions, unsigned int region_count, unsigned char *fname)
