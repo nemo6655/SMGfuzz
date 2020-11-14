@@ -145,7 +145,9 @@ static s32 out_fd,                    /* Persistent fd for out_file       */
            dev_urandom_fd = -1,       /* Persistent fd for /dev/urandom   */
            dev_null_fd = -1,          /* Persistent fd for /dev/null      */
            fsrv_ctl_fd,               /* Fork server control pipe (write) */
-           fsrv_st_fd;                /* Fork server status pipe (read)   */
+           fsrv_st_fd,                /* Fork server status pipe (read)   */
+           sbr_data_fd,               /* Transfere data to/from SaBRe     */
+           sbr_ctl_fd;                /* Understand state of SaBRe client */
 
 static s32 forksrv_pid,               /* PID of the fork server           */
            child_pid = -1,            /* PID of the fuzzed program        */
@@ -981,6 +983,235 @@ void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
 
   //Free state sequence
   if (state_sequence) ck_free(state_sequence);
+}
+
+// NOTE: This needs to be in sync with SaBRe.
+typedef enum {
+  GetNext = -2,
+  Timeout = -1,
+  Accept,
+  Send,
+  Recv,
+  ExitGroup
+} TargetAction;
+
+static boolean target_is_dead() {
+  int status = kill(child_pid, 0);
+  if (status != 0) {
+    if (errno == ESRCH) {
+      return TRUE;
+    } else {
+      PFATAL("target_is_dead");
+    }
+  }
+  return FALSE;
+}
+
+static boolean target_accepts_connections() {
+  // Did we crash before we even started?
+  if (target_is_dead()) {
+    return FALSE;
+  }
+
+  TargetAction ta = {0};
+  int rc = recv(sbr_ctl_fd, &ta, sizeof(TargetAction), 0);
+  if (rc <= 0) { // recv timeout
+    // Application crashed, too slow or killed by ctrl+c.
+    return FALSE;
+  }
+
+  if (ta == Accept) {
+    return TRUE;
+  } else if (ta == ExitGroup) {
+    // There might be some weird case that the server exited instantly, or there
+    // are remnants from a previous iteration.
+    if (target_is_dead()) { // Process is dead.
+      return FALSE;
+    } else { // Maybe this message came from a previous iteration. Try again.
+      return target_accepts_connections();
+    }
+  }
+
+  PFATAL("AFLNet-sbr expected an accept. Got action: %d", ta);
+}
+
+static void drain_pending_msgs() {
+  int tries = 0;
+  char buf[1000] = {0};
+  TargetAction ta = {0};
+  int rc, rc2;
+
+  while (TRUE) {
+    do { // Keep draining while there are still messages.
+      rc = recv(sbr_ctl_fd, &ta, sizeof(TargetAction), MSG_DONTWAIT);
+      rc2 = recv(sbr_data_fd, buf, sizeof(buf), MSG_DONTWAIT);
+    } while (rc > 0 || rc2 > 0);
+
+    if (target_is_dead()) {
+      return;
+    }
+
+    tries++;
+    if (tries >= 200) {
+      // TODO(andronat): How long should we wait?
+      // WARNF("drain_pending_msgs waited too long");
+      return;
+    }
+  }
+}
+
+TargetAction target_will_do() {
+  TargetAction ta = {0};
+  int rc = recv(sbr_ctl_fd, &ta, sizeof(TargetAction), 0);
+  if (rc <= 0) {
+    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+      // TOKF("target_will_do: timout");
+      // Probably we had a hang
+      return Timeout;
+    } else {
+      PFATAL("target_will_do existed with unknown errno: %d", errno);
+    }
+  }
+
+  if (ta == Accept) {
+    PFATAL("SaBRe protocol: out of sync.");
+  } else if (ta == Send || ta == Recv || ta == ExitGroup) {
+    return ta;
+  } else {
+    PFATAL("SaBRe protocol: unknown command.");
+  }
+}
+
+int send_over_network_sbr() {
+  u8 likely_buggy = 0;
+
+  // Clean up the server if needed
+  if (cleanup_script)
+    system(cleanup_script);
+
+  // Clear the response buffer and reset the response buffer size
+  if (response_buf) {
+    ck_free(response_buf);
+    response_buf = NULL;
+    response_buf_size = 0;
+  }
+
+  if (response_bytes) {
+    ck_free(response_bytes);
+    response_bytes = NULL;
+  }
+
+  // Set timeout for socket data sending/receiving -- otherwise it causes a big
+  // delay if the server is still alive after processing all the requests
+  struct timeval to = {.tv_sec = 1};
+  setsockopt(sbr_data_fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&to, sizeof(to));
+  setsockopt(sbr_data_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&to, sizeof(to));
+  setsockopt(sbr_ctl_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&to, sizeof(to));
+
+  if (target_accepts_connections() == FALSE) {
+    goto HANDLE_RESPONSES;
+  }
+
+  // Retrieve early server response if needed.
+  TargetAction ta = {0};
+  do {
+    ta = target_will_do();
+    if (ta == Send) {
+      ta = GetNext;
+      if (net_recv_sbr(sbr_data_fd, &response_buf, &response_buf_size) < 0)
+        goto HANDLE_RESPONSES;
+    } else if (ta == Recv) {
+      // There is not "hello" msg from the server.
+    } else if (ta == Timeout || ta == ExitGroup) {
+      goto HANDLE_RESPONSES;
+    } else {
+      PFATAL("Unexpected TargetAction");
+    }
+  } while (ta == GetNext);
+
+  // write the request messages
+  messages_sent = 0;
+  for (kliter_t(lms) *it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
+    int n = 0;
+    if (ta == Recv) {
+      ta = GetNext;
+      n = net_send_sbr(sbr_data_fd, kl_val(it)->mdata, kl_val(it)->msize);
+      messages_sent++;
+    } else {
+      PFATAL("Unexpected TargetAction: %d", ta);
+    }
+
+    // Allocate memory to store new accumulated response buffer size
+    response_bytes = (u32 *)ck_realloc(response_bytes, messages_sent * sizeof(u32));
+
+    // Jump out if something wrong leading to incomplete message sent
+    if (n != kl_val(it)->msize) {
+      goto HANDLE_RESPONSES;
+    }
+
+    // retrieve server response
+    u32 prev_buf_size = response_buf_size;
+
+    do {
+      if (ta == GetNext)
+        ta = target_will_do();
+
+      if (ta == Send) {
+        ta = GetNext;
+        if (net_recv_sbr(sbr_data_fd, &response_buf, &response_buf_size) < 0) {
+          goto HANDLE_RESPONSES;
+        }
+      } else if (ta == ExitGroup) {
+        goto HANDLE_RESPONSES;
+      } else if (ta == Timeout) {
+        if (target_is_dead()) { // Did we crush?
+          response_bytes[messages_sent - 1] = response_buf_size;
+          likely_buggy = 1;
+          goto HANDLE_RESPONSES;
+        } else { // Or we are just slow? Let's try again ¯\_(ツ)_/¯
+          ta = GetNext;
+        }
+      }
+    } while (ta == GetNext);
+
+    // Update accumulated response buffer size
+    response_bytes[messages_sent - 1] = response_buf_size;
+
+    // set likely_buggy flag if AFLNet does not receive any feedback from the
+    // server it could be a signal of a potentiall server crash, like the case
+    // of CVE-2019-7314
+    if (prev_buf_size == response_buf_size)
+      likely_buggy = 1;
+    else
+      likely_buggy = 0;
+  }
+
+HANDLE_RESPONSES:
+  // Drain sockets and check for remnants
+  drain_pending_msgs();
+
+  if (messages_sent > 0 && response_bytes != NULL) {
+    response_bytes[messages_sent - 1] = response_buf_size;
+  }
+
+  if (likely_buggy && false_negative_reduction)
+    return 0;
+
+  if (terminate_child && (child_pid > 0))
+    kill(child_pid, SIGTERM);
+
+  // give the server a bit more time to gracefully terminate
+  while (target_is_dead() == FALSE) {
+    if (terminate_child && (child_pid > 0))
+      kill(child_pid, SIGTERM);
+  }
+  // while (1) {
+  //   if (target_is_dead())
+  //     break;
+  // }
+  drain_pending_msgs();
+
+  return 0;
 }
 
 /* Send (mutated) messages in order to the server under test */
@@ -2841,13 +3072,20 @@ static void destroy_extras(void) {
 EXP_ST void init_forkserver(char** argv) {
 
   static struct itimerval it;
-  int st_pipe[2], ctl_pipe[2];
+  int st_pipe[2], ctl_pipe[2], sbr_data[2], sbr_ctl[2];
   int status;
   s32 rlen;
 
   ACTF("Spinning up the fork server...");
 
   if (pipe(st_pipe) || pipe(ctl_pipe)) PFATAL("pipe() failed");
+
+  if (socketpair(AF_LOCAL, SOCK_SEQPACKET, 0, sbr_data) != 0) {
+    PFATAL("socketpair() failed");
+  }
+  if (socketpair(AF_LOCAL, SOCK_SEQPACKET, 0, sbr_ctl) != 0) {
+    PFATAL("socketpair() failed");
+  }
 
   forksrv_pid = fork();
 
@@ -2919,10 +3157,23 @@ EXP_ST void init_forkserver(char** argv) {
     if (dup2(ctl_pipe[0], FORKSRV_FD) < 0) PFATAL("dup2() failed");
     if (dup2(st_pipe[1], FORKSRV_FD + 1) < 0) PFATAL("dup2() failed");
 
+    // Setup communication with SaBRe.
+    if (dup2(sbr_data[1], SABRE_DATA_SOCKET) != SABRE_DATA_SOCKET) {
+      PFATAL("dup2() failed");
+    }
+    if (dup2(sbr_ctl[1], SABRE_CTL_SOCKET) != SABRE_CTL_SOCKET) {
+      PFATAL("dup2() failed");
+    }
+
+
     close(ctl_pipe[0]);
     close(ctl_pipe[1]);
     close(st_pipe[0]);
     close(st_pipe[1]);
+    close(sbr_data[0]);
+    close(sbr_data[1]);
+    close(sbr_ctl[0]);
+    close(sbr_ctl[1]);
 
     close(out_dir_fd);
     close(dev_null_fd);
@@ -2964,9 +3215,28 @@ EXP_ST void init_forkserver(char** argv) {
 
   close(ctl_pipe[0]);
   close(st_pipe[1]);
+  close(sbr_data[1]);
+  close(sbr_ctl[1]);
 
+  sbr_data_fd = sbr_data[0];
+  sbr_ctl_fd = sbr_ctl[0];
   fsrv_ctl_fd = ctl_pipe[1];
   fsrv_st_fd  = st_pipe[0];
+
+  if (sbr_mode) {
+    char rsp[1024] = {0};
+    char expected[] = "hello from sbr";
+    int rc = recv(sbr_ctl_fd, rsp, 1024, 0);
+    if (strncmp(rsp, expected, sizeof(expected)) != 0 || rc != sizeof(expected))
+      PFATAL("sbr recv failed");
+
+    char msg[] = "hello from afl";
+    rc = send(sbr_ctl_fd, msg, sizeof(msg), MSG_NOSIGNAL);
+    if (rc != sizeof(msg))
+      PFATAL("sbr send failed");
+
+    OKF("SaBRe handshake OK!");
+  }
 
   /* Wait for the fork server to come up, but don't wait too long. */
 
@@ -3258,11 +3528,19 @@ static u8 run_target(char** argv, u32 timeout) {
   /* The SIGALRM handler simply kills the child_pid and sets child_timed_out. */
 
   if (dumb_mode == 1 || no_forkserver) {
-    if (use_net) send_over_network();
+    if (sbr_mode) {
+      send_over_network_sbr();
+    } else if (use_net) {
+      send_over_network();
+    }
     if (waitpid(child_pid, &status, 0) <= 0) PFATAL("waitpid() failed");
 
   } else {
-    if (use_net) send_over_network();
+    if (sbr_mode) {
+      send_over_network_sbr();
+    } else if (use_net) {
+      send_over_network();
+    }
     s32 res;
 
     if ((res = read(fsrv_st_fd, &status, 4)) != 4) {

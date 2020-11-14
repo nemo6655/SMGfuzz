@@ -1692,6 +1692,33 @@ int net_recv(int sockfd, struct timeval timeout, int poll_w, char **response_buf
   return 0;
 }
 
+int net_send_sbr(int sockfd, char *mem, unsigned int len) {
+  // TODO(andronat): Do we need MSG_EOR and MSG_DONTWAIT?
+  // TODO(andronat): Warn user if /proc/sys/net/core/wmem_default is too small.
+  int n = send(sockfd, mem, len, MSG_NOSIGNAL);
+  if ((n == -1) && (errno == EMSGSIZE)) {
+    WARNF("SOCK_SEQPACKET can't support such long msgs: %u", len);
+  }
+  return n;
+}
+
+int net_recv_sbr(int sockfd, char **response_buf, unsigned int *len) {
+  // TODO(andronat): temp_buf should equal to /proc/sys/net/core/rmem_default.
+  char temp_buf[1000] = {0};
+  int n = 0;
+  do {
+    n = recv(sockfd, temp_buf, sizeof(temp_buf), 0);
+    if (n <= 0)
+      return -1;
+
+    *response_buf = (unsigned char *)ck_realloc(*response_buf, *len + n + 1);
+    memcpy(&(*response_buf)[*len], temp_buf, n);
+    (*response_buf)[(*len) + n] = '\0';
+    *len = *len + n;
+  } while (n >= sizeof(temp_buf));
+  return n;
+}
+
 // Utility function
 
 void save_regions_to_file(region_t *regions, unsigned int region_count, unsigned char *fname)

@@ -101,7 +101,7 @@
 #define HAVOC_MIN           16
 
 /* Maximum stacking for havoc-stage tweaks. The actual value is calculated
-   like this: 
+   like this:
 
    n = random between 1 and HAVOC_STACK_POW2
    stacking = 2^n
@@ -302,6 +302,10 @@
    use FORKSRV_FD and FORKSRV_FD + 1): */
 
 #define FORKSRV_FD          198
+
+/* SaBRe file descriptors */
+#define SABRE_DATA_SOCKET (FORKSRV_FD + 2)
+#define SABRE_CTL_SOCKET (SABRE_DATA_SOCKET + 1)
 
 /* Fork server init timeout multiplier: we'll wait the user-selected
    timeout plus this much for the fork server to spin up. */

@@ -90,6 +90,9 @@ extern region_t* (*extract_requests)(unsigned char* buf, unsigned int buf_size, 
 int net_send(int sockfd, struct timeval timeout, char *mem, unsigned int len);
 int net_recv(int sockfd, struct timeval timeout, int poll_w, char **response_buf, unsigned int *len);
 
+int net_recv_sbr(int sockfd, char **response_buf, unsigned int *len);
+int net_send_sbr(int sockfd, char *mem, unsigned int len);
+
 // kl_messages manipulating functions
 
 /* Construct a new linked list to store all messages from a list of regions */
