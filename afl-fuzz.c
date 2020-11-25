@@ -3183,7 +3183,10 @@ EXP_ST void init_forkserver(char** argv) {
 
     r.rlim_max = r.rlim_cur = 0;
 
+#ifdef CORE_BENCH
+#else
     setrlimit(RLIMIT_CORE, &r); /* Ignore errors */
+#endif
 
     /* Isolate the process and configure standard descriptors. If out_file is
        specified, stdin is /dev/null; otherwise, out_fd is cloned instead. */
@@ -3191,7 +3194,10 @@ EXP_ST void init_forkserver(char** argv) {
     setsid();
 
     dup2(dev_null_fd, 1);
+#ifdef CORE_BENCH
+#else
     dup2(dev_null_fd, 2);
+#endif
 
     if (out_file) {
 
@@ -3654,6 +3660,9 @@ static u8 run_target(char** argv, u32 timeout) {
 
     if (kill_signal == SIGTERM) return FAULT_NONE;
 
+#ifdef CORE_BENCH
+    WARNF("Snapfuzz crashed? %d", kill_signal);
+#endif
     return FAULT_CRASH;
 
   }
