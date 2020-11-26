@@ -8301,7 +8301,7 @@ EXP_ST void check_binary(u8* fname) {
 
   }
 
-  if (memmem(f_data, f_len, DEFER_SIG, strlen(DEFER_SIG) + 1)) {
+  if (memmem(f_data, f_len, DEFER_SIG, strlen(DEFER_SIG) + 1) || sbr_mode) {
 
     OKF(cPIN "Deferred forkserver binary detected.");
     setenv(DEFER_ENV_VAR, "1", 1);
