@@ -1001,10 +1001,8 @@ static double get_current_time() {
 typedef enum {
   GetNext = -2,
   Timeout = -1,
-  Accept,
   Send,
-  Recv,
-  ExitGroup
+  Recv
 } TargetAction;
 
 static boolean target_is_dead() {
@@ -1019,7 +1017,7 @@ static boolean target_is_dead() {
   return FALSE;
 }
 
-static TargetAction poll_action() {
+static TargetAction target_will_do() {
   TargetAction ta = {0};
   int rc, periodic_check = 0;
   do {
@@ -1032,35 +1030,11 @@ static TargetAction poll_action() {
       }
       periodic_check = 0;
     }
-    if (child_timed_out) {
+    if (child_timed_out || stop_soon) {
       return Timeout;
-    }
-    if (stop_soon) {
-      return ExitGroup;
     }
   } while (rc <= 0);
   return ta;
-}
-
-static boolean target_accepts_connections() {
-  // TODO(andronat): benchmark. I didn't see a difference.
-  // do {
-  //   rc = recv(sbr_ctl_fd, &ta, sizeof(TargetAction), MSG_DONTWAIT);
-  // } while (rc <= 0);
-
-  // Did we crash before we even started?
-  if (target_is_dead()) {
-    return FALSE;
-  }
-
-  TargetAction ta = poll_action();
-  if (ta == Accept) {
-    return TRUE;
-  } else if (ta == ExitGroup || ta == Timeout) {
-    return FALSE;
-  }
-
-  PFATAL("AFLNet-sbr expected an accept. Got action: %d", ta);
 }
 
 static void emulate_disconnect() {
@@ -1089,13 +1063,6 @@ static void drain_pending_msgs() {
       return;
     }
   }
-}
-
-TargetAction target_will_do() {
-  TargetAction ta = poll_action();
-  if (ta == Accept)
-    PFATAL("SaBRe protocol: out of sync.");
-  return ta;
 }
 
 // TODO: Possible optimizations
@@ -1134,9 +1101,6 @@ int send_over_network_sbr() {
   setsockopt(sbr_ctl_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&to, sizeof(to));
 
   double bstart_time = get_current_time();
-  if (target_accepts_connections() == FALSE) {
-    goto HANDLE_RESPONSES;
-  }
   TOKF("0 Conn: %lf %s", get_current_time() - bstart_time, response_buf);
 
   // Retrieve early server response if needed.
@@ -1150,7 +1114,7 @@ int send_over_network_sbr() {
         goto HANDLE_RESPONSES;
     } else if (ta == Recv) {
       // There is not "hello" msg from the server.
-    } else if (ta == Timeout || ta == ExitGroup) {
+    } else if (ta == Timeout) {
       goto HANDLE_RESPONSES;
     } else {
       PFATAL("Unexpected TargetAction: %d", ta);
@@ -1198,8 +1162,6 @@ int send_over_network_sbr() {
         if (net_recv_sbr(sbr_data_fd, &response_buf, &response_buf_size) < 0) {
           goto HANDLE_RESPONSES;
         }
-      } else if (ta == ExitGroup) {
-        goto HANDLE_RESPONSES;
       } else if (ta == Timeout) {
         response_bytes[messages_sent - 1] = response_buf_size;
         if (prev_buf_size == response_buf_size)
