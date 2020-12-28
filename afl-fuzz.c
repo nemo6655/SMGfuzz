@@ -1006,7 +1006,7 @@ typedef enum {
 } TargetAction;
 
 static boolean target_is_dead() {
-  int status = kill(child_pid, 0);
+  int status = kill(-child_pid, 0);
   if (status != 0) {
     if (errno == ESRCH) {
       return TRUE;
@@ -1058,6 +1058,7 @@ static void drain_pending_msgs() {
       // TODO: Technically there is a race condition for when child_pid dies,
       // the OS could possibly recycle the pid and we will be waiting (or worse,
       // killing) an unrelated to us process.
+      kill(-child_pid, SIGTERM);
       kill(child_pid, SIGTERM);
     } else if (child_timed_out || stop_soon) {
       return;
@@ -8078,8 +8079,9 @@ static void handle_stop_sig(int sig) {
 
   stop_soon = 1;
 
+  if (child_pid > 0) kill(-child_pid, SIGKILL);
   if (child_pid > 0) kill(child_pid, SIGKILL);
-  if (forksrv_pid > 0) kill(forksrv_pid, SIGKILL);
+  if (forksrv_pid > 0) kill(-forksrv_pid, SIGKILL);
 
 }
 
@@ -8099,12 +8101,13 @@ static void handle_timeout(int sig) {
   if (child_pid > 0) {
 
     child_timed_out = 1;
+    kill(-child_pid, SIGKILL);
     kill(child_pid, SIGKILL);
 
   } else if (child_pid == -1 && forksrv_pid > 0) {
 
     child_timed_out = 1;
-    kill(forksrv_pid, SIGKILL);
+    kill(-forksrv_pid, SIGKILL);
 
   }
 
@@ -9624,8 +9627,9 @@ int main(int argc, char** argv) {
   /* If we stopped programmatically, we kill the forkserver and the current runner.
      If we stopped manually, this is done by the signal handler. */
   if (stop_soon == 2) {
+      if (child_pid > 0) kill(-child_pid, SIGKILL);
       if (child_pid > 0) kill(child_pid, SIGKILL);
-      if (forksrv_pid > 0) kill(forksrv_pid, SIGKILL);
+      if (forksrv_pid > 0) kill(-forksrv_pid, SIGKILL);
   }
   /* Now that we've killed the forkserver, we wait for it to be able to get rusage stats. */
   if (waitpid(forksrv_pid, NULL, 0) <= 0) {
