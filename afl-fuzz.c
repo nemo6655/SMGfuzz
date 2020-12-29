@@ -1006,7 +1006,11 @@ typedef enum {
 } TargetAction;
 
 static boolean target_is_dead() {
-  int status = kill(-child_pid, 0);
+  int status = kill(child_pid, 0);
+  if (status == 0)
+    return FALSE;
+
+  status = kill(-child_pid, 0);
   if (status != 0) {
     if (errno == ESRCH) {
       return TRUE;
