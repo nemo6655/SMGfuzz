@@ -1052,6 +1052,7 @@ static void drain_pending_msgs() {
   TargetAction ta = {0};
   int rc;
 
+  boolean sent_sig_once = FALSE;
   while (TRUE) {
     do { // Keep draining while there are still messages.
       rc = recv(sbr_ctl_fd, &ta, sizeof(TargetAction), MSG_DONTWAIT);
@@ -1065,12 +1066,13 @@ static void drain_pending_msgs() {
       } while (rc > -2);
 
       return;
-    } else if (terminate_child && (child_pid > 0)) {
+    } else if (terminate_child && (child_pid > 0) && !sent_sig_once) {
       // TODO: Technically there is a race condition for when child_pid dies,
       // the OS could possibly recycle the pid and we will be waiting (or worse,
       // killing) an unrelated to us process.
       kill(-child_pid, SIGTERM);
       kill(child_pid, SIGTERM);
+      sent_sig_once = TRUE;
     } else if (child_timed_out || stop_soon) {
       return;
     }
