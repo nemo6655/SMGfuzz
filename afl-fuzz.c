@@ -147,7 +147,9 @@ static s32 out_fd,                    /* Persistent fd for out_file       */
            fsrv_ctl_fd,               /* Fork server control pipe (write) */
            fsrv_st_fd,                /* Fork server status pipe (read)   */
            sbr_data_fd,               /* Transfere data to/from SaBRe     */
-           sbr_ctl_fd;                /* Understand state of SaBRe client */
+           sbr_ctl_fd,                /* Understand state of SaBRe client */
+           sbr_data_fd_target,
+           sbr_ctl_fd_target;
 
 static s32 forksrv_pid,               /* PID of the fork server           */
            child_pid = -1,            /* PID of the fuzzed program        */
@@ -1048,15 +1050,20 @@ static void emulate_disconnect() {
 static void drain_pending_msgs() {
   char buf[1000] = {0};
   TargetAction ta = {0};
-  int rc, rc2;
+  int rc;
 
   while (TRUE) {
     do { // Keep draining while there are still messages.
       rc = recv(sbr_ctl_fd, &ta, sizeof(TargetAction), MSG_DONTWAIT);
-      rc2 = recv(sbr_data_fd, buf, sizeof(buf), MSG_DONTWAIT);
-    } while (rc > 0 || rc2 > 0);
+      rc += recv(sbr_data_fd, buf, sizeof(buf), MSG_DONTWAIT);
+    } while (rc > -2);
 
     if (target_is_dead()) {
+      do {
+        rc += recv(sbr_ctl_fd_target, buf, sizeof(buf), MSG_DONTWAIT);
+        rc += recv(sbr_data_fd_target, buf, sizeof(buf), MSG_DONTWAIT);
+      } while (rc > -2);
+
       return;
     } else if (terminate_child && (child_pid > 0)) {
       // TODO: Technically there is a race condition for when child_pid dies,
@@ -1215,7 +1222,6 @@ HANDLE_RESPONSES:
     return 0;
 
   bstart_time = get_current_time();
-  drain_pending_msgs();
   TOKF("5 Kill: %lf\n%s", get_current_time() - bstart_time, response_buf);
 
   return 0;
@@ -3240,8 +3246,9 @@ EXP_ST void init_forkserver(char** argv) {
 
   close(ctl_pipe[0]);
   close(st_pipe[1]);
-  close(sbr_data[1]);
-  close(sbr_ctl[1]);
+
+  sbr_data_fd_target = sbr_data[1];
+  sbr_ctl_fd_target = sbr_ctl[1];
 
   sbr_data_fd = sbr_data[0];
   sbr_ctl_fd = sbr_ctl[0];
