@@ -166,6 +166,7 @@ static inline void DFL_ck_free(void* mem) {
 /* Re-allocate a buffer, checking for issues and zeroing any newly-added tail.
    With DEBUG_BUILD, the buffer is always reallocated to a new addresses and the
    old memory is clobbered with 0xFF. */
+#include <unistd.h>
 
 static inline void* DFL_ck_realloc(void* orig, u32 size) {
 
@@ -194,6 +195,12 @@ static inline void* DFL_ck_realloc(void* orig, u32 size) {
 
   }
 
+  if (size > MAX_ALLOC) {
+    for(;;) {
+      WARNF("AMAN! %d", size);
+      sleep(10);
+    }
+  }
   ALLOC_CHECK_SIZE(size);
 
 #ifndef DEBUG_BUILD
@@ -298,7 +305,7 @@ static inline void* DFL_ck_memdup(void* mem, u32 size) {
   ALLOC_CHECK_SIZE(size);
   ret = malloc(size + ALLOC_OFF_TOTAL);
   ALLOC_CHECK_RESULT(ret, size);
-  
+
   ret += ALLOC_OFF_HEAD;
 
   ALLOC_C1(ret) = ALLOC_MAGIC_C1;
@@ -322,7 +329,7 @@ static inline u8* DFL_ck_memdup_str(u8* mem, u32 size) {
   ALLOC_CHECK_SIZE(size);
   ret = malloc(size + ALLOC_OFF_TOTAL + 1);
   ALLOC_CHECK_RESULT(ret, size);
-  
+
   ret += ALLOC_OFF_HEAD;
 
   ALLOC_C1(ret) = ALLOC_MAGIC_C1;

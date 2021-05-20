@@ -1161,6 +1161,10 @@ int send_over_network_sbr() {
     TOKF("2 Send: %lf %d msg: %s", get_current_time() - bstart_time, n, kl_val(it)->mdata);
 
     // Allocate memory to store new accumulated response buffer size
+    if (messages_sent * sizeof(u32) >= MAX_ALLOC) {
+        emulate_disconnect();
+        goto HANDLE_RESPONSES;
+    }
     response_bytes = (u32 *)ck_realloc(response_bytes, messages_sent * sizeof(u32));
 
     // retrieve server response

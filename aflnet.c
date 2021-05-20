@@ -1215,6 +1215,10 @@ unsigned int* extract_response_codes_dtls12(unsigned char* buf, unsigned int buf
         }
       }
 
+      if ((state_count+1) * sizeof(unsigned int) >= MAX_ALLOC) {
+        *state_count_ref = state_count;
+        return state_sequence;
+      }
       status_code = (content_type << 8) + message_type;
       state_count++;
       state_sequence = (unsigned int *)ck_realloc(state_sequence, state_count * sizeof(unsigned int));
