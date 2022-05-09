@@ -3607,6 +3607,11 @@ static u8 run_target(char** argv, u32 timeout) {
 
   total_execs++;
 #ifdef LONG_BENCH
+#elif SHORT_BENCH
+  if (total_execs == 10000) {
+    OKF("Snapfuzz-bench: Done!");
+    raise(SIGINT);
+  }
 #else
   if (total_execs == 1000000) {
     OKF("Snapfuzz-bench: Done!");
