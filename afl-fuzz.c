@@ -375,6 +375,12 @@ EXP_ST u8 session_virgin_bits[MAP_SIZE];     /* Regions yet untouched while the 
 EXP_ST u8 *cleanup_script; /* script to clean up the environment of the SUT -- make fuzzing more deterministic */
 EXP_ST u8 *netns_name; /* network namespace name to run server in */
 char **was_fuzzed_map = NULL; /* A 2D array keeping state-specific was_fuzzed information */
+
+//TODO:增加state_map变量，用于记录state的三元组信息
+
+boolean state_map[STATE_MAP_SIZE][STATE_MAP_SIZE];//state_map每个点表示协议状态机种的一个有向边。
+
+
 u32 fuzzed_map_states = 0;
 u32 fuzzed_map_qentries = 0;
 u32 max_seed_region_count = 0;
@@ -398,7 +404,7 @@ Agraph_t  *ipsm;
 static FILE* ipsm_dot_file;
 
 /* Hash table/map and list */
-//TODO：增加state三元组表示state_map中的节点
+//TODO:增加state三元组表示state_map中的节点
 klist_t(lms) *kl_messages;
 khash_t(hs32) *khs_ipsm_paths;
 khash_t(hms) *khms_states;
@@ -603,7 +609,7 @@ u32 index_search(u32 *A, u32 n, u32 val) {
   }
   return index;
 }
-
+//TODO:需要修改的核心函数
 /* Calculate state scores and select the next state */
 u32 update_scores_and_select_next_state(u8 mode) {
   u32 result = 0, i;
@@ -645,7 +651,7 @@ u32 update_scores_and_select_next_state(u8 mode) {
   if (state_scores) ck_free(state_scores);
   return result;
 }
-
+//TODO：需要修改的核心函数
 /* Select a target state at which we do state-aware fuzzing */
 unsigned int choose_target_state(u8 mode) {
   u32 result = 0;
@@ -681,6 +687,7 @@ unsigned int choose_target_state(u8 mode) {
   return result;
 }
 
+//TODO:需要修改的核心函数
 /* Select a seed to exercise the target state */
 struct queue_entry *choose_seed(u32 target_state_id, u8 mode)
 {
@@ -760,6 +767,7 @@ struct queue_entry *choose_seed(u32 target_state_id, u8 mode)
   return result;
 }
 
+//TODO:需要修改的核心函数
 /* Update state-aware variables */
 void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
 {
@@ -1577,7 +1585,7 @@ static void mark_as_redundant(struct queue_entry* q, u8 state) {
 
 
 /* Append new test case to the queue. */
-
+//TODO：需要修改，增加state添加
 static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
 
   struct queue_entry* q = ck_alloc(sizeof(struct queue_entry));
@@ -2087,7 +2095,7 @@ static void minimize_bits(u8* dst, u8* src) {
    for every byte in the bitmap. We win that slot if there is no previous
    contender, or if the contender has smaller unique state count or
    it has a more favorable speed x size factor. */
-
+//TODO:这里是否需要修改？
 static void update_bitmap_score(struct queue_entry* q) {
 
   u32 i;
@@ -2142,7 +2150,7 @@ static void update_bitmap_score(struct queue_entry* q) {
    previously-unseen bytes (temp_v) and marks them as favored, at least
    until the next run. The favored entries are given more air time during
    all fuzzing steps. */
-
+//TODO:这里是否需要修改？
 static void cull_queue(void) {
 
   struct queue_entry* q;
@@ -2263,7 +2271,7 @@ static void setup_post(void) {
 
 /* Read all testcases from the input directory, then queue them for testing.
    Called at startup. */
-
+//TODO:这里是否需要修改？
 static void read_testcases(void) {
 
   struct dirent **nl;
@@ -5393,7 +5401,7 @@ static void show_init_stats(void) {
 /* Write a modified test case, run program, process results. Handle
    error conditions, returning 1 if it's time to bail out. This is
    a helper function for fuzz_one(). */
-
+//TODO：需要进行仔细修改，将kl_message构建部分从M2构建，改为Mnext
 EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
   u8 fault;
@@ -5569,7 +5577,7 @@ static u32 choose_block_len(u32 limit) {
 /* Calculate case desirability score to adjust the length of havoc fuzzing.
    A helper function for fuzz_one(). Maybe some of these constants should
    go into config.h. */
-
+//TODO:如何构建新的bitmap分数需要仔细考虑。
 static u32 calculate_score(struct queue_entry* q) {
 
   u32 avg_exec_us = total_cal_us / total_cal_cycles;
@@ -5826,7 +5834,7 @@ static u8 could_be_interest(u32 old_val, u32 new_val, u8 blen, u8 check_le) {
 /* Take the current entry from the queue, fuzz it for a while. This
    function is a tad too long... returns 0 if fuzzed successfully, 1 if
    skipped or bailed out. */
-
+//TODO:对整个流程修改
 static u8 fuzz_one(char** argv) {
 
   s32 len, fd, temp_len, i, j;
@@ -7026,7 +7034,7 @@ havoc_stage:
     stage_cur_val = use_stacking;
 
     for (i = 0; i < use_stacking; i++) {
-
+//TODO：这里是否需要针对性增加变异方法？
       switch (UR(15 + 2 + (region_level_mutation ? 4 : 0))) {
 
         case 0:
@@ -7612,7 +7620,7 @@ retry_splicing:
 abandon_entry:
 
   splicing_with = -1;
-
+//TODO：完成一次fuzz后，需要更改state_map相关变量？
   /* Update pending_not_fuzzed count if we made it through the calibration
      cycle and have not seen this entry before. */
 
@@ -8834,7 +8842,7 @@ int main(int argc, char** argv) {
 
   gettimeofday(&tv, &tz);
   srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
-
+//TODO：增加状态选择算法statemap，增加结束response信息参数，增加机器学习算法相关参数
   while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:QN:D:W:w:e:P:KEq:s:RFc:l:")) > 0)
 
     switch (opt) {
@@ -9251,7 +9259,8 @@ int main(int argc, char** argv) {
     if (state_ids_count == 0) {
       PFATAL("No server states have been detected. Server responses are likely empty!");
     }
-
+//TODO:此处在perform_dry_run函数中进行了网络部分的IPSM构建，如果成功收到报文，则不应该出现state_ids_count为0的情况。
+//TODO:在一轮测试中，需要完成一次bitmap的覆盖，从bitmap对应的statemap中寻找能够覆盖当前bitmap的所有状态集，组成测试队列
     while (1) {
       u8 skipped_fuzz;
 

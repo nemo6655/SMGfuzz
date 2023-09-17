@@ -36,12 +36,13 @@ enum {
   /* 00 */ PRO_TCP,
   /* 01 */ PRO_UDP
 };
-
+//TODO: add state_map mod
 enum {
   /* 00 */ INVALID_SELECTION,
   /* 01 */ RANDOM_SELECTION,
   /* 02 */ ROUND_ROBIN,
-  /* 03 */ FAVOR
+  /* 03 */ FAVOR,
+  /* 04 */ STATE_MAP
 };
 
 // Initialize klist linked list data structure
