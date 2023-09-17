@@ -273,7 +273,7 @@ struct queue_entry {
   u32 generating_state_id;            /* ID of the start at which the new seed was generated */
   u8 is_initial_seed;                 /* Is this an initial seed */
   u32 unique_state_count;             /* Unique number of states traversed by this queue entry */
-
+//TODO:根据需要，对queue_entry数据结构进行增加
 };
 
 static struct queue_entry *queue,     /* Fuzzing queue (linked list)      */
@@ -398,6 +398,7 @@ Agraph_t  *ipsm;
 static FILE* ipsm_dot_file;
 
 /* Hash table/map and list */
+//TODO：增加state三元组表示state_map中的节点
 klist_t(lms) *kl_messages;
 khash_t(hs32) *khs_ipsm_paths;
 khash_t(hms) *khms_states;
@@ -447,6 +448,8 @@ u32 get_state_index(u32 state_id) {
   }
   return index;
 }
+
+//TODO:增加expand_state_map函数，用于扩展state_map
 
 /* Expand the size of the map when a new seed or a new state has been discovered */
 void expand_was_fuzzed_map(u32 new_states, u32 new_qentries) {
