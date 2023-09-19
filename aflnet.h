@@ -32,11 +32,26 @@ typedef struct {
   u32 seeds_count;            /* total number of seeds, it must be equal the size of the seeds array */
 } state_info_t;
 
+//state point in state_map
+typedef struct {
+  u32      id;       //state id
+  region_t * Mn;     //Message n
+  unsigned int Rn;   //Response n
+  region_t * Mn_1;   //Message n+1
+  unsigned int Rn_1;   //Response n+1
+  void     **seeds;  /* keep all seeds reaching this state */
+  // TODO：增加到达此节点的序列
+  // TODO：增加此节点当前覆盖的bitmap
+  // TODO：增加节点对应的queue_entry
+  
+}state_point_t;
+
+
 enum {
   /* 00 */ PRO_TCP,
   /* 01 */ PRO_UDP
 };
-//TODO: add state_map mod
+// add state_map mod
 enum {
   /* 00 */ INVALID_SELECTION,
   /* 01 */ RANDOM_SELECTION,

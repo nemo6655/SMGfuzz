@@ -273,6 +273,9 @@ struct queue_entry {
   u32 generating_state_id;            /* ID of the start at which the new seed was generated */
   u8 is_initial_seed;                 /* Is this an initial seed */
   u32 unique_state_count;             /* Unique number of states traversed by this queue entry */
+
+
+  u32 state_map_id;                   /* ID of the state map */
 //TODO:根据需要，对queue_entry数据结构进行增加
 };
 
@@ -376,11 +379,26 @@ EXP_ST u8 *cleanup_script; /* script to clean up the environment of the SUT -- m
 EXP_ST u8 *netns_name; /* network namespace name to run server in */
 char **was_fuzzed_map = NULL; /* A 2D array keeping state-specific was_fuzzed information */
 
+
+/* SMGfuzz -specific variables & functions */
 //TODO:增加state_map变量，用于记录state的三元组信息
+//FIXME:state_map类型应为指向state_point_t的指针?
+state_point_t *state_map[STATE_MAP_SIZE][STATE_MAP_SIZE];//state_map每个点表示协议状态机种的一个有向边。
+u32 state_map_count = 0;//statemap中的节点数量
 
-boolean state_map[STATE_MAP_SIZE][STATE_MAP_SIZE];//state_map每个点表示协议状态机种的一个有向边。
 
 
+
+
+
+
+
+
+
+
+unsigned int response_end_code = 0;
+
+/* SMGfuzz -specific variables & functions */
 u32 fuzzed_map_states = 0;
 u32 fuzzed_map_qentries = 0;
 u32 max_seed_region_count = 0;
@@ -408,6 +426,7 @@ static FILE* ipsm_dot_file;
 klist_t(lms) *kl_messages;
 khash_t(hs32) *khs_ipsm_paths;
 khash_t(hms) *khms_states;
+khash_t(sm) *khsm_state_map;
 
 //M2_prev points to the last message of M1 (i.e., prefix)
 //If M1 is empty, M2_prev == NULL
@@ -419,7 +438,17 @@ kliter_t(lms) *M2_prev, *M2_next;
 unsigned int* (*extract_response_codes)(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref) = NULL;
 region_t* (*extract_requests)(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref) = NULL;
 
+//TODO: state_map init
+void state_map_init()
+{
+
+}
+
+
+
+
 /* Initialize the implemented state machine as a graphviz graph */
+//TODO:增加state_map初始化函数
 void setup_ipsm()
 {
   ipsm = agopen("g", Agdirected, 0);
@@ -430,6 +459,8 @@ void setup_ipsm()
   khs_ipsm_paths = kh_init(hs32);
 
   khms_states = kh_init(hms);
+  //TODO:初始化state_map,初始化SMGfuzz需要的其他参数？
+  khsm_state_map = kh_init(sm);
 }
 
 /* Free memory allocated to state-machine variables */
@@ -442,6 +473,7 @@ void destroy_ipsm()
   state_info_t *state;
   kh_foreach_value(khms_states, state, {ck_free(state->seeds); ck_free(state);});
   kh_destroy(hms, khms_states);
+  kh_destroy(sm, khsm_state_map);
 
   ck_free(state_ids);
 }
@@ -1623,6 +1655,7 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
   }
 
   /* AFLNet: extract regions keeping client requests if needed */
+  //TODO:第一次读取种子，这里完成regions的构建。
   if (corpus_read_or_sync) {
     FILE *fp;
     unsigned char *buf;
@@ -1637,6 +1670,8 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
     if (byte_count != len) PFATAL("AFLNet - Inconsistent file length '%s'", fname);
     q->regions = (*extract_requests)(buf, len, &q->region_count);
     ck_free(buf);
+
+    // TODO：遍历
 
     //Keep track the maximal number of seed regions
     //We use this for some optimization to reduce the overhead while following the server's sequence diagram
@@ -2351,7 +2386,10 @@ static void read_testcases(void) {
 
     if (!access(dfn, F_OK)) passed_det = 1;
     ck_free(dfn);
-
+    //TODO:将当前文件中的nregions读取到内存中，并添加到queue_entry的regions中，目前考虑不需要修改。
+    /* XXX：这里存在一个问题，目前读取出的regions是连续的几个请求在一个regions里，statemap需要单独
+    的region进行初始化，是否需要修改add_to_queue的corpus_read_or_sync的逻辑，对应到statemap初始化
+    算法？ */
     add_to_queue(fn, st.st_size, passed_det);
 
   }
@@ -3590,6 +3628,8 @@ static void perform_dry_run(char** argv) {
     close(fd);
 
     /* AFLNet construct the kl_messages linked list for this queue entry*/
+    /* TODO：构建kl_messages是依据种子中的regions，regions是发送报文序列，这里需要
+    修改为statemap的初始节点，因为下面calibrate_case会调用run_target校准种子 */
     kl_messages = construct_kl_messages(q->fname, q->regions, q->region_count);
 
     res = calibrate_case(argv, q, use_mem, 0, 1);
@@ -8119,6 +8159,7 @@ static void usage(u8* argv0) {
        "  -c cleanup    - name or full path to the server cleanup script (see README.md)\n"
        "  -q algo       - state selection algorithm (See aflnet.h for all available options)\n"
        "  -s algo       - seed selection algorithm (See aflnet.h for all available options)\n\n"
+       "  -r endcode    - endcode for the server (see README.md)\n" 
 
        "Other stuff:\n\n"
 
@@ -8842,8 +8883,8 @@ int main(int argc, char** argv) {
 
   gettimeofday(&tv, &tz);
   srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
-//TODO：增加状态选择算法statemap，增加结束response信息参数，增加机器学习算法相关参数
-  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:QN:D:W:w:e:P:KEq:s:RFc:l:")) > 0)
+//TODO：增加机器学习算法相关参数
+  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:QN:D:W:w:e:P:KEq:s:RFc:l:r:")) > 0)
 
     switch (opt) {
 
@@ -9131,6 +9172,11 @@ int main(int argc, char** argv) {
         local_port = atoi(optarg);
 	      if (local_port < 1024 || local_port > 65535) FATAL("Invalid source port number");
         break;
+        /* SMGfuzz:set the response code of the protocol's end state*/
+      case 'r':
+        if (local_port) FATAL("Multiple -l options not supported");
+        response_end_code = (unsigned int) atoi(optarg);
+
 
       default:
 
@@ -9232,7 +9278,7 @@ int main(int argc, char** argv) {
     use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
   else
     use_argv = argv + optind;
-
+  /* TODO:perfrom_dry_run整个执行过车中只调用这一次，所以这里需要初始化statemap及其所有相关参数 */
   perform_dry_run(use_argv);
 
   cull_queue();
