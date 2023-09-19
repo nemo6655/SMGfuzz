@@ -40,11 +40,21 @@ typedef struct {
   region_t * Mn_1;   //Message n+1
   unsigned int Rn_1;   //Response n+1
   void     **seeds;  /* keep all seeds reaching this state */
+  u32 seeds_count;
+  u8 point_type;
+  state_point_t *state_next;
+
   // TODO：增加到达此节点的序列
   // TODO：增加此节点当前覆盖的bitmap
-  // TODO：增加节点对应的queue_entry
+
   
 }state_point_t;
+
+enum{
+  /* 00 */ POINT_INIT,
+  /* 01 */ POINT_TO_ADD,
+  /* 02 */ POINT_ADDED_TO_MAP,
+};
 
 
 enum {
@@ -63,6 +73,15 @@ enum {
 // Initialize klist linked list data structure
 #define message_t_freer(x)
 KLIST_INIT(lms, message_t *, message_t_freer)
+
+//SMGFuzz:Initialize klist linked list data structure
+#define state_point_t_freer(x)
+KLIST_INIT(sil, state_point_t *, state_point_t_freer)
+
+#define state_point_t_freer(x)
+KLIST_INIT(stal, state_point_t *, state_point_t_freer)
+
+KHASH_INIT(sm, khint32_t, state_point_t *, 1, kh_int_hash_func, kh_int_hash_equal)
 
 KHASH_SET_INIT_INT(hs32)
 
