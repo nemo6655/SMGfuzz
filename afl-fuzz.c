@@ -383,20 +383,6 @@ EXP_ST u8 *netns_name; /* network namespace name to run server in */
 char **was_fuzzed_map = NULL; /* A 2D array keeping state-specific was_fuzzed information */
 
 
-/* SMGfuzz -specific variables & functions */
-//TODO:增加state_map变量，用于记录state的三元组信息
-//FIXME:state_map类型应为指向state_point_t的指针?
-state_point_t *state_map[STATE_MAP_SIZE][STATE_MAP_SIZE];//state_map每个点表示协议状态机种的一个有向边。
-u32 state_map_count = 0;//statemap中的节点数量
-state_point_t *state_zero;
-
-
-
-khash_t(sm) *khsm_state_map;
-klist_t(stal) *state_to_add_list;
-klist_t(sil) *state_init_list;
-
-//TODO: state_map init
 
 
 
@@ -441,6 +427,25 @@ khash_t(hms) *khms_states;
 //If M3 is empty, M2_next point to the end of the kl_messages linked list
 kliter_t(lms) *M2_prev, *M2_next;
 
+
+/* SMGfuzz -specific variables & functions */
+//TODO:增加state_map变量，用于记录state的三元组信息
+//FIXME:state_map类型应为指向state_point_t的指针?
+state_point_t *state_map[STATE_MAP_SIZE][STATE_MAP_SIZE];//state_map每个点表示协议状态机种的一个有向边。
+u32 state_map_count = 0;//statemap中的节点数量
+state_point_t *state_zero_top;
+state_point_t *state_zero;
+
+
+khash_t(sm) *khsm_state_map;
+klist_t(stal) *state_to_add_list;
+
+
+//TODO: state_map init
+
+
+
+
 //Function pointers pointing to Protocol-specific functions
 unsigned int* (*extract_response_codes)(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref) = NULL;
 region_t* (*extract_requests)(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref) = NULL;
@@ -449,29 +454,42 @@ region_t* (*extract_requests)(unsigned char* buf, unsigned int buf_size, unsigne
 
 //SMGFuzz:add method here
 
-void init_state_zero(unsigned int *state_sequence,struct queue_entry* q)
+/* NOTE:init_state_map完成了初始化，得到了包含state0和以每个返回值不为Re的M 
+为初始点的state_point，它的下一个节点state_zero链表*/
+void init_state_map(unsigned int *state_sequence,struct queue_entry* q)
 {
-  
+  int discard; 
+  khint_t k;
   state_point_t *sp = NULL;
   sp = q->state_point;
   sp->Rn = state_sequence[1];
 
 
   if(state_sequence[1] == response_end_code){
-    if(state_map_count == 0){
-      state_map_count++;
-      state_map[0][0] = state_zero = q->state_point;
+    if(!state_map_count){
+      state_map[0][0] = state_zero = state_zero_top = q->state_point;
     };
-    state_map[0][0]->state_next = q->state_point;
-    state_map[0][0] = q->state_point;
+    state_zero_top->state_next = q->state_point;
+    state_zero_top = q->state_point;
+    sp->Rn = response_end_code;
+    k = kh_put(sm, khsm_state_map, state_map_count, &discard);
+    kh_value(khsm_state_map, k) = q->state_point;
   }else{
-    *kl_pushp(stal, state_to_add_list) = q->state_point;
     state_map_count++;
+    sp->id  = state_map_count;
+    state_map[state_map_count/16][state_map_count%16] = q->state_point;
+    sp->Rn = state_sequence[1];
+    sp->Mn_1 = state_zero;
+    sp->Rn_1 = response_end_code;
+    sp->point_type = POINT_TO_ADD;
+    *kl_pushp(stal, state_to_add_list) = q->state_point;
+    k = kh_put(sm, khsm_state_map, state_map_count, &discard);
+    kh_value(khsm_state_map, k) = q->state_point;
   }
 
 }
 
-void state_map_init(){
+void add_to_statemap(){
 
 }
 
@@ -846,11 +864,12 @@ void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
   unsigned int *state_sequence = (*extract_response_codes)(response_buf, response_buf_size, &state_count);
   //从response_buf中解析出了state_sequence，对ftp协议来说，就是respones的头三个字节
   //state_sequence为类似[0,0x323230,0x323330]的数组，由于处理过种子，这里获得的应该是只有两个元素的数组，一个为0，第二个是返回码
-  if(seed_selection_algo == STATE_MAP){
-    init_state_zero(state_sequence, q);
-
+  if((seed_selection_algo == STATE_MAP)&& dry_run){
+    init_state_map(state_sequence, q);
   }
   //SMGFuzz:初始化了state0和state_to_add_list
+
+
   q->unique_state_count = get_unique_state_count(state_sequence, state_count);
 
   if (is_state_sequence_interesting(state_sequence, state_count)) {
@@ -1656,7 +1675,6 @@ static void mark_as_redundant(struct queue_entry* q, u8 state) {
 
 
 /* Append new test case to the queue. */
-//TODO：需要修改，增加state添加；
 //BUG:这里需要初始化的每个种子只包含一个region，即一条请求，且不同种子应分属不同的state。可以通过预处理将种子处理后加入队列。
 //NOTE:read_testcases函数遍历整个种子库，对每个文件进行一次add_to_queue操作。
 static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
@@ -1712,8 +1730,6 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
     q->regions = (*extract_requests)(buf, len, &q->region_count);
     ck_free(buf);
     //NOTE:第一次读取种子，这里完成regions的构建。
-    //TODO：将每个region作为一个<M,null,null>,将其加入stat_init_list
-    //Done:init the state_init_list
     if(seed_selection_algo == STATE_MAP){
       if(q->region_count == 1){
         state_point_t *m = (state_point_t *) ck_alloc(sizeof(state_point_t));
@@ -1726,8 +1742,8 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
         m->seeds[m->seeds_count] = (void *)q;
         m->seeds_count++;
         m->point_type = POINT_INIT;
-        *kl_pushp(sil, state_init_list) = m;
-        q->state_point = m
+        // *kl_pushp(sil, state_init_list) = m;
+        q->state_point = m;
         /* 这里获得了一个state_init_list，实现了statemap_init算法的1 */
       }else{
         FATAL("AFLNet - seed_selection_algo STATE_MAP only support one region per seed");
@@ -2190,7 +2206,7 @@ static void minimize_bits(u8* dst, u8* src) {
    for every byte in the bitmap. We win that slot if there is no previous
    contender, or if the contender has smaller unique state count or
    it has a more favorable speed x size factor. */
-//TODO:这里是否需要修改？
+//TODO:update_bitmap_score只在calibrate_case时调用，更新q的分数
 static void update_bitmap_score(struct queue_entry* q) {
 
   u32 i;
@@ -2206,7 +2222,7 @@ static void update_bitmap_score(struct queue_entry* q) {
        if (top_rated[i]) {
 
          /* AFLNet check unique state count first */
-
+        /* NOTE: 此处更新bitmap上点对应队列信息，时间对于协议模糊测试不重要*/
          if (q->unique_state_count < top_rated[i]->unique_state_count) continue;
 
          /* Faster-executing or smaller test cases are favored. */
@@ -2246,6 +2262,9 @@ static void update_bitmap_score(struct queue_entry* q) {
    until the next run. The favored entries are given more air time during
    all fuzzing steps. */
 //TODO:这里是否需要修改？
+/* NOTE：到这里q与statemap中的节点还保持一一对应的关系
+cull_queue函数在最初调用一次，以后每个测试循环调用一次
+主要用来调整测试队列queue中的节点顺序 */
 static void cull_queue(void) {
 
   struct queue_entry* q;
@@ -2271,7 +2290,7 @@ static void cull_queue(void) {
 
   /* Let's see if anything in the bitmap isn't captured in temp_v.
      If yes, and if it has a top_rated[] contender, let's use it. */
-
+  /* NOTE:top_rate[]存储了bitmap中点对应的最优queue_entry,这里对top_rate进行了遍历 */
   for (i = 0; i < MAP_SIZE; i++)
     if (top_rated[i] && (temp_v[i >> 3] & (1 << (i & 7)))) {
 
@@ -2414,10 +2433,9 @@ static void read_testcases(void) {
   /* SMGFuzz:init statemap variables*/
   if(state_selection_algo == STATE_MAP){
     state_to_add_list = kl_init(stal);
-    state_init_list = kl_init(sil);
+    khsm_state_map = kh_init(sm);
     //TODO:add other variables to init
   }
-
 
   for (i = 0; i < nl_cnt; i++) {
 

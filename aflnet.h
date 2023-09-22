@@ -75,8 +75,6 @@ enum {
 KLIST_INIT(lms, message_t *, message_t_freer)
 
 //SMGFuzz:Initialize klist linked list data structure
-#define state_point_t_freer(x)
-KLIST_INIT(sil, state_point_t *, state_point_t_freer)
 
 #define state_point_t_freer(x)
 KLIST_INIT(stal, state_point_t *, state_point_t_freer)
