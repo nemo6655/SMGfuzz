@@ -35,23 +35,24 @@ typedef struct {
 //state point in state_map
 typedef struct {
   u32      id;       //state id
-  region_t * Mn;     //Message n
+  message_t * Mn;     //Message n
   unsigned int Rn;   //Response n
-  region_t * Mn_1;   //Message n+1
+  message_t * Mn_1;   //Message n+1
   unsigned int Rn_1;   //Response n+1
   void     **seeds;  /* keep all seeds reaching this state */
   u32 seeds_count;
   u8 point_type;
-  state_point_t *state_next;
+  state_point_t *state_zero_next;
+  u32 point_hash;
 
   // TODO：增加到达此节点的序列
   // TODO：增加此节点当前覆盖的bitmap
 
   
-}state_point_t;
+} state_point_t;
 
 enum{
-  /* 00 */ POINT_INIT,
+  /* 00 */ POINT_ZERO,
   /* 01 */ POINT_TO_ADD,
   /* 02 */ POINT_ADDED_TO_MAP,
 };
@@ -77,12 +78,13 @@ KLIST_INIT(lms, message_t *, message_t_freer)
 //SMGFuzz:Initialize klist linked list data structure
 
 #define state_point_t_freer(x)
-KLIST_INIT(stal, state_point_t *, state_point_t_freer)
+KLIST_INIT(sl, state_point_t *, state_point_t_freer)
 
 KHASH_INIT(sm, khint32_t, state_point_t *, 1, kh_int_hash_func, kh_int_hash_equal)
 
 KHASH_SET_INIT_INT(hs32)
 
+KHASH_SET_INIT_INT(phs32)
 // Initialize a hash table with int key and value is of type state_info_t
 KHASH_INIT(hms, khint32_t, state_info_t *, 1, kh_int_hash_func, kh_int_hash_equal)
 
