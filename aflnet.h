@@ -44,7 +44,7 @@ typedef struct {
   u8 point_type;
   state_point_t *state_zero_next;
   u32 point_hash;
-
+  u8 is_fuzzed;
   // TODO：增加到达此节点的序列
   // TODO：增加此节点当前覆盖的bitmap
 
