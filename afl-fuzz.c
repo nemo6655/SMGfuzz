@@ -280,6 +280,7 @@ struct queue_entry {
   u32 state_count;
   u32 unfuzzed_state_count;
   u32 state_list_count;
+  u32 state_sequence_count;
   queue_states_list *state_list_head;
   queue_states_list *state_list_tail;
   state_point_t *state_points[STATE_MAP_SIZE];
@@ -420,7 +421,7 @@ Agraph_t  *ipsm;
 static FILE* ipsm_dot_file;
 
 /* Hash table/map and list */
-//TODO:增加state三元组表示state_map中的节点
+
 klist_t(lms) *kl_messages;
 khash_t(hs32) *khs_ipsm_paths;
 khash_t(hms) *khms_states;
@@ -434,8 +435,7 @@ kliter_t(lms) *M2_prev, *M2_next;
 
 
 /* SMGFuzz -specific variables & functions */
-//TODO:增加state_map变量，用于记录state的三元组信息
-//FIXME:state_map类型应为指向state_point_t的指针?
+
 state_point_t *state_map[STATE_MAP_SIZE_POW2][STATE_MAP_SIZE_POW2];//state_map每个点表示协议状态机种的一个有向边。
 
 
@@ -529,7 +529,7 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
                   q->state_count++;
                   q->unfuzzed_state_count++;
                   q->state_points[sp->id] = sp;
-                  add_point_to_queue_list(m_prev, m, q, sp);
+                  add_point_to_queue_list(m_prev, m, state_sequence[message_count], q, sp);
                 }
               }
             }
@@ -625,6 +625,7 @@ void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1
 
   if(Rn_1 ==response_end_code){
     qsl->message_end = 1;
+    q->state_sequence_count++;
   }else{
     qsl->message_end = 0;
   }
@@ -1025,7 +1026,7 @@ struct queue_entry *choose_seed(u32 target_state_id, u8 mode)
 
 /* Update state-aware variables */
 /* SMGFuzz:perform_dry_run调用时，这里完成对q所对应的序列中所有的statepoint加入statemap中 */
-//TODO:save_if_intresting调用时，完成对statemap的更新
+//SMGFuzz:save_if_intresting调用时，完成对statemap的更新
 void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
 {
   khint_t k;
@@ -1869,6 +1870,7 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
   q->state_count = 0;
   q->unfuzzed_state_count = 0;
   q->state_list_count = 0;
+  q->state_sequence_count = 1;
   q->state_list_head = NULL;
   q->state_list_tail = NULL;
   q->to_add_list = NULL;
@@ -2391,6 +2393,7 @@ static void update_bitmap_score(struct queue_entry* q) {
         //SMGFuzz:update_bitmap_score只在calibrate_case时调用，更新q的分数,此时构建的top_rated[]在cull_queue中使用,需要根据state_map来确定
         if (state_selection_algo == STATE_MAP){
 
+          //SMGFuzz：增加种子中state_sequence_count的考虑，当queue_cylces增加到一定程度时，选择state_sequence_count小的种子优先。
           if(q->unfuzzed_state_count < top_rated[i]->unfuzzed_state_count) continue;
 
           // if ((q->state_count < top_rated[i]->state_count) && (fav_factor > top_rated[i]->exec_us * top_rated[i]->len)) continue;
@@ -7940,7 +7943,7 @@ retry_splicing:
 abandon_entry:
 
   splicing_with = -1;
-//TODO：完成一次fuzz后，需要更改state_map相关变量？
+//SMGFuzz：完成一次fuzz后，需要更改state_map相关变量？
   /* Update pending_not_fuzzed count if we made it through the calibration
      cycle and have not seen this entry before. */
 
@@ -9560,7 +9563,7 @@ int main(int argc, char** argv) {
     use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
   else
     use_argv = argv + optind;
-  /* TODO:perfrom_dry_run整个执行过车中只调用这一次，所以这里需要初始化statemap及其所有相关参数 */
+  /* NOTE:perfrom_dry_run整个执行过车中只调用这一次，所以这里需要初始化statemap及其所有相关参数 */
   perform_dry_run(use_argv);
 
 
@@ -9602,24 +9605,43 @@ int main(int argc, char** argv) {
       //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
 
       state_map_choose_state_point();
-      if (selected_seed) {
-        if (!queue_cur) {
-            current_entry     = 0;
-            cur_skipped_paths = 0;
-            queue_cur         = queue;
-            queue_cycle++;
-        }
-        while (queue_cur != selected_seed) {
+
+      if (!queue_cur) {
+
+        queue_cycle++;
+        current_entry     = 0;
+        cur_skipped_paths = 0;
+        queue_cur         = queue;
+
+        while (seek_to) {
+          current_entry++;
+          seek_to--;
           queue_cur = queue_cur->next;
-          current_entry++;//记录当前队列中的queue_id
-          if (!queue_cur) { //从头开始找
-            current_entry     = 0;
-            cur_skipped_paths = 0;
-            queue_cur         = queue;
-            queue_cycle++;
-          }
         }
+
+        // show_stats();
+
+        // if (not_on_tty) {
+        //   ACTF("Entering queue cycle %llu.", queue_cycle);
+        //   fflush(stdout);
+        // }
+
+        // /* If we had a full queue cycle with no new finds, try
+        //    recombination strategies next. */
+
+        // if (queued_paths == prev_queued) {
+
+        //   if (use_splicing) cycles_wo_finds++; else use_splicing = 1;
+
+        // } else cycles_wo_finds = 0;
+
+        // prev_queued = queued_paths;
+
+        // if (sync_id && queue_cycle == 1 && getenv("AFL_IMPORT_FIRST"))
+        //   sync_fuzzers(use_argv);
+
       }
+
 
 
 
