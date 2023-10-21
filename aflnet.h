@@ -37,7 +37,7 @@ typedef struct {
   u32      id;       //state id
   message_t * Mn;     //Message n
   unsigned int Rn;   //Response n
-  message_t * Mn_1;   //Message n+1
+
   unsigned int Rn_1;   //Response n+1
   void     **seeds;  /* keep all seeds reaching this state */
   u32 seeds_count;
@@ -45,11 +45,26 @@ typedef struct {
   state_point_t *state_zero_next;
   u32 point_hash;
   u8 is_fuzzed;
+  state_point_t *state_to_add_next;
+  state_point_t *state_to_add_prev;
   // TODO：增加到达此节点的序列
   // TODO：增加此节点当前覆盖的bitmap
 
   
 } state_point_t;
+
+
+typedef struct {
+  u32 id;
+  u8 is_fuzzed;
+  u8 message_end;
+  state_point_t *state_point;
+  message_t * Mn;     //Message n
+  message_t * Mn_1;   //Message n+1
+
+  queue_states_list *prev;
+  queue_states_list *next;
+} queue_states_list;
 
 enum{
   /* 00 */ POINT_ZERO,
