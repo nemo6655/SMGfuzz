@@ -279,8 +279,9 @@ struct queue_entry {
 //SMGFuzz:根据需要，对queue_entry数据结构进行增加
   u32 state_count;
   u32 unfuzzed_state_count;
-  u32 state_list_count;
-  u32 state_sequence_count;
+  u32 state_list_count; //0表示有POINT_TO_ADD类型节点，优先fuzz，其余为当前需要fuzz的Mn在state_list中的位置
+  u32 state_sequence_count; //该queue_entry中的以Response_end_code结尾的message链的数量。
+  u32 construct_sequence_id;
   queue_states_list *state_list_head;
   queue_states_list *state_list_tail;
   state_point_t *state_points[STATE_MAP_SIZE];
@@ -440,7 +441,7 @@ state_point_t *state_map[STATE_MAP_SIZE_POW2][STATE_MAP_SIZE_POW2];//state_map�
 
 
 
-
+u32 state_list_id_to_fuzz = 0;//state_list中的节点id，用于变异时选择变异节点
 u32 state_map_count = 0;//statemap中的节点数量
 state_point_t *state_zero_top = NULL;
 state_point_t *state_zero = NULL;
@@ -618,8 +619,9 @@ void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1
   m->msize = Mn_1->msize;
   memcpy(m->mdata, Mn_1->mdata, Mn_1->msize);
   qsl->Mn_1 = m;
-  qsl->id = q->state_list_count;
+
   q->state_list_count++;
+  qsl->id = q->state_list_count;
   qsl->is_fuzzed = 0;
   qsl->state_point = sp;
 
@@ -657,10 +659,70 @@ struct queue_entry *state_map_choose_seed(){
 
 };
 
-void state_map_choose_state_point(){
+u32 state_map_choose_state_point(struct queue_entry * q){
+  queue_states_list * qslit = NULL;
+
+  if(!q->to_add_list){
+    return 0;
+  }else{
+    for(qslit = q->state_list_tail; qslit!= q->state_list_head; qslit = qslit->prev){
+      if(!qslit->is_fuzzed){
+        return qslit->id;
+      }
+    }
+
+  }
 
 }
 
+
+//SMGFuzz:通过queue_entry的to_add_list或state_list构建kl_messages
+klist_t(lms) *construct_kl_messages_from_queue_states_list(){
+  klist_t(lms) *kl_messages = kl_init(lms);
+  kliter_t(lms) *it;
+  queue_states_list * qslit = NULL;
+  state_point_t * sp = NULL;
+  u32 csi = queue_cur->construct_sequence_id;
+
+  if(!queue_cur->state_list_count){
+    for(sp=queue_cur->to_add_top; sp!=queue_cur->to_add_list; sp=sp->state_to_add_prev){
+      if(!sp->is_fuzzed){
+        message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+        m->mdata = (char) ck_alloc(sp->Mn->msize);
+        m->msize = sp->Mn->msize;
+        memcpy(m->mdata, sp->Mn->mdata, sp->Mn->msize);
+        *kl_pushp(lms, kl_messages) = m;
+      }
+    }
+  }else{
+    for(qslit = queue_cur->state_list_head; qslit->next!= NULL; qslit = qslit->next){
+      if(!csi){
+        if(!qslit->message_end){
+          continue;
+        }else{
+          csi--;
+        }
+      }
+      if(!qslit->message_end){
+        message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+        m->mdata = (char) ck_alloc(qslit->Mn->msize);
+        m->msize = qslit->Mn->msize;
+        memcpy(m->mdata, qslit->Mn->mdata, qslit->Mn->msize);
+        *kl_pushp(lms, kl_messages) = m;
+      }
+    }
+  }
+  message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+  m->mdata = (char) ck_alloc(qslit->Mn_1->msize);
+  m->msize = qslit->Mn_1->msize;
+  memcpy(m->mdata, qslit->Mn_1->mdata, qslit->Mn_1->msize);
+  *kl_pushp(lms, kl_messages) = m;
+  if(queue_cur->construct_sequence_id <= queue_cur->state_sequence_count){
+    queue_cur->construct_sequence_id++;
+  }
+   
+  return kl_messages;
+}
 
 struct state_point_t * get_state_point(u32 state_id){
 
@@ -1875,6 +1937,7 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
   q->state_list_tail = NULL;
   q->to_add_list = NULL;
   q->to_add_top = NULL;
+  q->construct_sequence_id = 0;
 
   if (q->depth > max_depth) max_depth = q->depth;
 
@@ -6225,112 +6288,148 @@ AFLNET_REGIONS_SELECTION:;
   /* In this implementation, we only need to indentify M2_start_region_ID which is the first region of M2
   and M2_region_count which is the total number of regions in M2. How the information is identified is
   state aware dependent. However, once the information is clear, the code for fuzzing preparation is the same */
+  if(state_selection_algo == STATE_MAP){
+    //SMGFuzz:AFL原有选择策略
+    if (pending_favored) {
 
-  if (state_aware_mode) {
-    /* In state aware mode, select M2 based on the targeted state ID */
-    //SMGFuzz: 加入Statemap变异算法
-    if(state_selection_algo == STATE_MAP){
+      /* If we have any favored, non-fuzzed new arrivals in the queue,
+        possibly skip to them at the expense of already-fuzzed or non-favored
+        cases. */
+
+      if ((queue_cur->was_fuzzed || !queue_cur->favored) &&
+          UR(100) < SKIP_TO_NEW_PROB) return 1;
+
+    } else if (!dumb_mode && !queue_cur->favored && queued_paths > 10) {
+
+      /* Otherwise, still possibly skip non-favored cases, albeit less often.
+        The odds of skipping stuff are higher for already-fuzzed inputs and
+        lower for never-fuzzed entries. */
+
+      if (queue_cycle > 1 && !queue_cur->was_fuzzed) {
+
+        if (UR(100) < SKIP_NFAV_NEW_PROB) return 1;
+
+      } else {
+
+        if (UR(100) < SKIP_NFAV_OLD_PROB) return 1;
+
+      }
 
     }
-    u32 total_region = queue_cur->region_count;
-    if (total_region == 0) PFATAL("0 region found for %s", queue_cur->fname);
+    //SMGFuzz:生成本次变异所需的inbuf和outbuf
+    //构建kl_messages链表
+    kl_messages = construct_kl_messages_from_queue_states_list();
 
-    if (target_state_id == 0) {
-      //No prefix subsequence (M1 is empty)
-      M2_start_region_ID = 0;
-      M2_region_count = 0;
 
-      //To compute M2_region_count, we identify the first region which has a different annotation
-      //Now we quickly compare the state count, we could make it more fine grained by comparing the exact response codes
-      for(i = 0; i < queue_cur->region_count ; i++) {
-        if (queue_cur->regions[i].state_count != queue_cur->regions[0].state_count) break;
-        M2_region_count++;
+
+
+  }else{
+      if (state_aware_mode) {
+      /* In state aware mode, select M2 based on the targeted state ID */
+
+
+      u32 total_region = queue_cur->region_count;
+      if (total_region == 0) PFATAL("0 region found for %s", queue_cur->fname);
+
+      if (target_state_id == 0) {
+        //No prefix subsequence (M1 is empty)
+        M2_start_region_ID = 0;
+        M2_region_count = 0;
+
+        //To compute M2_region_count, we identify the first region which has a different annotation
+        //Now we quickly compare the state count, we could make it more fine grained by comparing the exact response codes
+        for(i = 0; i < queue_cur->region_count ; i++) {
+          if (queue_cur->regions[i].state_count != queue_cur->regions[0].state_count) break;
+          M2_region_count++;
+        }
+      } else {
+        //M1 is unlikely to be empty
+        M2_start_region_ID = 0;
+
+        //Identify M2_start_region_ID first based on the target_state_id
+        for(i = 0; i < queue_cur->region_count; i++) {
+          u32 regionalStateCount = queue_cur->regions[i].state_count;
+          if (regionalStateCount > 0) {
+            //reachableStateID is the last ID in the state_sequence
+            u32 reachableStateID = queue_cur->regions[i].state_sequence[regionalStateCount - 1];
+            M2_start_region_ID++;
+            if (reachableStateID == target_state_id) break;
+          } else {
+            //No annotation for this region
+            return 1;
+          }
+        }
+
+        //Then identify M2_region_count
+        for(i = M2_start_region_ID; i < queue_cur->region_count ; i++) {
+          if (queue_cur->regions[i].state_count != queue_cur->regions[M2_start_region_ID].state_count) break;
+          M2_region_count++;
+        }
+
+        //Handle corner case(s) and skip the current queue entry
+        if (M2_start_region_ID >= queue_cur->region_count) return 1;
       }
     } else {
-      //M1 is unlikely to be empty
-      M2_start_region_ID = 0;
+      /* Select M2 randomly */
+      u32 total_region = queue_cur->region_count;
+      if (total_region == 0) PFATAL("0 region found for %s", queue_cur->fname);
 
-      //Identify M2_start_region_ID first based on the target_state_id
-      for(i = 0; i < queue_cur->region_count; i++) {
-        u32 regionalStateCount = queue_cur->regions[i].state_count;
-        if (regionalStateCount > 0) {
-          //reachableStateID is the last ID in the state_sequence
-          u32 reachableStateID = queue_cur->regions[i].state_sequence[regionalStateCount - 1];
-          M2_start_region_ID++;
-          if (reachableStateID == target_state_id) break;
-        } else {
-          //No annotation for this region
-          return 1;
-        }
+      M2_start_region_ID = UR(total_region);
+      M2_region_count = UR(total_region - M2_start_region_ID);
+      if (M2_region_count == 0) M2_region_count++; //Mutate one region at least
+    }
+
+    /* Construct the kl_messages linked list and identify boundary pointers (M2_prev and M2_next) */
+    kl_messages = construct_kl_messages(queue_cur->fname, queue_cur->regions, queue_cur->region_count);
+
+    kliter_t(lms) *it;
+
+    M2_prev = NULL;
+    M2_next = kl_end(kl_messages);
+
+    u32 count = 0;
+    for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
+      if (count == M2_start_region_ID - 1) {
+        M2_prev = it;
       }
 
-      //Then identify M2_region_count
-      for(i = M2_start_region_ID; i < queue_cur->region_count ; i++) {
-        if (queue_cur->regions[i].state_count != queue_cur->regions[M2_start_region_ID].state_count) break;
-        M2_region_count++;
+      if (count == M2_start_region_ID + M2_region_count) {
+        M2_next = it;
       }
-
-      //Handle corner case(s) and skip the current queue entry
-      if (M2_start_region_ID >= queue_cur->region_count) return 1;
-    }
-  } else {
-    /* Select M2 randomly */
-    u32 total_region = queue_cur->region_count;
-    if (total_region == 0) PFATAL("0 region found for %s", queue_cur->fname);
-
-    M2_start_region_ID = UR(total_region);
-    M2_region_count = UR(total_region - M2_start_region_ID);
-    if (M2_region_count == 0) M2_region_count++; //Mutate one region at least
-  }
-
-  /* Construct the kl_messages linked list and identify boundary pointers (M2_prev and M2_next) */
-  kl_messages = construct_kl_messages(queue_cur->fname, queue_cur->regions, queue_cur->region_count);
-
-  kliter_t(lms) *it;
-
-  M2_prev = NULL;
-  M2_next = kl_end(kl_messages);
-
-  u32 count = 0;
-  for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
-    if (count == M2_start_region_ID - 1) {
-      M2_prev = it;
+      count++;
     }
 
-    if (count == M2_start_region_ID + M2_region_count) {
-      M2_next = it;
+    /* Construct the buffer to be mutated and update out_buf */
+    if (M2_prev == NULL) {
+      it = kl_begin(kl_messages);
+    } else {
+      it = kl_next(M2_prev);
     }
-    count++;
+
+    u32 in_buf_size = 0;
+    while (it != M2_next) {
+      in_buf = (u8 *) ck_realloc (in_buf, in_buf_size + kl_val(it)->msize);
+      if (!in_buf) PFATAL("AFLNet cannot allocate memory for in_buf");
+      //Retrieve data from kl_messages to populate the in_buf
+      memcpy(&in_buf[in_buf_size], kl_val(it)->mdata, kl_val(it)->msize);
+
+      in_buf_size += kl_val(it)->msize;
+      it = kl_next(it);
+    }
+
+    orig_in = in_buf;
+
+    out_buf = ck_alloc_nozero(in_buf_size);
+    memcpy(out_buf, in_buf, in_buf_size);
+
+    //Update len to keep the correct size of the buffer being mutated
+    len = in_buf_size;
+
+    //Save the len for later use
+    M2_len = len;
   }
 
-  /* Construct the buffer to be mutated and update out_buf */
-  if (M2_prev == NULL) {
-    it = kl_begin(kl_messages);
-  } else {
-    it = kl_next(M2_prev);
-  }
 
-  u32 in_buf_size = 0;
-  while (it != M2_next) {
-    in_buf = (u8 *) ck_realloc (in_buf, in_buf_size + kl_val(it)->msize);
-    if (!in_buf) PFATAL("AFLNet cannot allocate memory for in_buf");
-    //Retrieve data from kl_messages to populate the in_buf
-    memcpy(&in_buf[in_buf_size], kl_val(it)->mdata, kl_val(it)->msize);
-
-    in_buf_size += kl_val(it)->msize;
-    it = kl_next(it);
-  }
-
-  orig_in = in_buf;
-
-  out_buf = ck_alloc_nozero(in_buf_size);
-  memcpy(out_buf, in_buf, in_buf_size);
-
-  //Update len to keep the correct size of the buffer being mutated
-  len = in_buf_size;
-
-  //Save the len for later use
-  M2_len = len;
 
   /*********************
    * PERFORMANCE SCORE *
@@ -9599,12 +9698,7 @@ int main(int argc, char** argv) {
       struct queue_entry *selected_seed = NULL;
       cull_queue();
       
-      selected_seed = state_map_choose_seed();
-      //SMGFuzz:AFLNet在每轮fuzz中选择一个种子作为测试目标，这样其实破坏了afl原有的选择队列，导致有些种子容易出现饿死的情况，且无法保证每轮覆盖所有的bitmap上的点
-      //是否延用这种方法？？否。。。
-      //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
 
-      state_map_choose_state_point();
 
       if (!queue_cur) {
 
@@ -9618,6 +9712,13 @@ int main(int argc, char** argv) {
           seek_to--;
           queue_cur = queue_cur->next;
         }
+
+      //SMGFuzz:AFLNet在每轮fuzz中选择一个种子作为测试目标，这样其实破坏了afl原有的选择队列，导致有些种子容易出现饿死的情况，且无法保证每轮覆盖所有的bitmap上的点
+      //是否延用这种方法？？否。。。
+      //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
+      selected_seed = state_map_choose_seed();
+      state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
+
 
         // show_stats();
 
@@ -9641,10 +9742,6 @@ int main(int argc, char** argv) {
         //   sync_fuzzers(use_argv);
 
       }
-
-
-
-
 
       skipped_fuzz = fuzz_one(use_argv);
 
