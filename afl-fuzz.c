@@ -440,7 +440,9 @@ kliter_t(lms) *M2_prev, *M2_next;
 state_point_t *state_map[STATE_MAP_SIZE_POW2][STATE_MAP_SIZE_POW2];//state_map每个点表示协议状态机种的一个有向边。
 
 
-
+u32 kl_start_id = 0;
+u32 kl_end_id = 0;
+u32 state_zero_count = 0;
 u32 state_list_id_to_fuzz = 0;//state_list中的节点id，用于变异时选择变异节点
 u32 state_map_count = 0;//statemap中的节点数量
 state_point_t *state_zero_top = NULL;
@@ -490,7 +492,7 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
           add_point_to_zero(m, state_sequence[message_count], q);
           m = NULL;
         }else{
-          if(message_count == state_count){
+          if(message_count == state_count -1 ){
             //只有源状态没有目的状态情况下,加入queue_entry的state_to_add_list,变异时优先变异。
             sp = init_state_point();
             message_t * mm = (message_t *) ck_alloc(sizeof(message_t));
@@ -597,7 +599,7 @@ void add_point_to_zero(message_t * Mn, unsigned int Rn, struct queue_entry* q){
   sp->seeds[sp->seeds_count] = (void *)q;
   sp->seeds_count++;
   sp->point_type = POINT_ZERO;
-  q->state_count++;
+  state_zero_count++;
 
   if(!state_zero){
     state_map[0][0] = state_zero = state_zero_top = sp;
@@ -666,15 +668,25 @@ struct queue_entry *state_map_choose_seed(){
 u32 state_map_choose_state_point(struct queue_entry * q){
   queue_states_list * qslit = NULL;
   u32 ssc = q->state_sequence_count;
+  u32 tmp_id = 0;
+  boolean start = TRUE;
+
   if(!q->to_add_list){
     return 0;
   }else{
-    for(qslit = q->state_list_tail; qslit->next!= q->state_list_head; qslit = qslit->prev){
+    for(qslit = q->state_list_tail; qslit!= NULL; qslit = qslit->prev){
       if(ssc > q->construct_sequence_id){
         if(!qslit->message_end){
           continue;
         }else{
           ssc--;
+          if(!qslit->is_fuzzed && ssc == q->construct_sequence_id){
+            return qslit->id;
+          }
+          if(start && ssc == q->construct_sequence_id){
+            tmp_id = qslit->id;
+            start = FALSE;
+          }
           continue;
         }
       }
@@ -683,17 +695,18 @@ u32 state_map_choose_state_point(struct queue_entry * q){
           return qslit->id;
         }
       }else{
-        if(q->construct_sequence_id <= q->state_sequence_count){
-          q->construct_sequence_id++;
-        }
         if(!qslit->is_fuzzed){
           return qslit->id;
         }
         break;
       }
     }
-
+    if(q->construct_sequence_id <= q->state_sequence_count){
+      q->construct_sequence_id++;
+    }
+    return tmp_id++;
   }
+
 }
 
 
@@ -704,9 +717,10 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
   queue_states_list * qslit = NULL;
   state_point_t * sp = NULL;
   u32 csi = queue_cur->construct_sequence_id;
+  boolean start = TRUE;
 
   if(!state_list_id_to_fuzz){
-    for(sp=queue_cur->to_add_top; sp!=queue_cur->to_add_list; sp=sp->state_to_add_prev){
+    for(sp=queue_cur->to_add_top; sp!=queue_cur->to_add_list->state_to_add_prev; sp=sp->state_to_add_prev){
       if(!sp->is_fuzzed){
         message_t *m = (message_t *) ck_alloc(sizeof(message_t));
         m->mdata = (char) ck_alloc(sp->Mn->msize);
@@ -716,7 +730,7 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
       }
     }
   }else{
-    for(qslit = queue_cur->state_list_head; qslit->next!= NULL; qslit = qslit->next){
+    for(qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next){
       if(csi > 0){
         if(!qslit->message_end){
           continue;
@@ -726,6 +740,10 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
         }
       }
       if(!qslit->message_end){
+        if(start){
+          kl_start_id = qslit->id;
+          start = FALSE;
+        }
         message_t *m = (message_t *) ck_alloc(sizeof(message_t));
         m->mdata = (char) ck_alloc(qslit->Mn->msize);
         m->msize = qslit->Mn->msize;
@@ -740,12 +758,13 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
         break;
       }
     }
+    kl_end_id = qslit->id;
+    message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+    m->mdata = (char) ck_alloc(qslit->Mn_1->msize);
+    m->msize = qslit->Mn_1->msize;
+    memcpy(m->mdata, qslit->Mn_1->mdata, qslit->Mn_1->msize);
+    *kl_pushp(lms, kl_messages) = m;
   }
-  message_t *m = (message_t *) ck_alloc(sizeof(message_t));
-  m->mdata = (char) ck_alloc(qslit->Mn_1->msize);
-  m->msize = qslit->Mn_1->msize;
-  memcpy(m->mdata, qslit->Mn_1->mdata, qslit->Mn_1->msize);
-  *kl_pushp(lms, kl_messages) = m;
 
    
   return kl_messages;
@@ -772,8 +791,7 @@ void setup_ipsm()
   khs_ipsm_paths = kh_init(hs32);
 
   khms_states = kh_init(hms);
-  //TODO:初始化state_map,初始化SMGfuzz需要的其他参数？
-  khsm_state_map = kh_init(sm);
+
 }
 
 /* Free memory allocated to state-machine variables */
@@ -942,6 +960,10 @@ void update_fuzzs() {
       }
     }
   }
+  if(state_selection_algo == STATE_MAP){
+
+  }
+
   ck_free(state_sequence);
   kh_destroy(hs32, khs_state_ids);
 }
@@ -996,7 +1018,6 @@ u32 update_scores_and_select_next_state(u8 mode) {
   if (state_scores) ck_free(state_scores);
   return result;
 }
-//TODO：需要修改的核心函数
 /* Select a target state at which we do state-aware fuzzing */
 unsigned int choose_target_state(u8 mode) {
   u32 result = 0;
@@ -1032,7 +1053,6 @@ unsigned int choose_target_state(u8 mode) {
   return result;
 }
 
-//TODO:需要修改的核心函数
 /* Select a seed to exercise the target state */
 struct queue_entry *choose_seed(u32 target_state_id, u8 mode)
 {
@@ -1130,7 +1150,11 @@ void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
   //SMGFuzz:初始化statemap
 
   if(seed_selection_algo == STATE_MAP){
+    if(dry_run){
     add_queue_to_state_map(state_sequence, state_count, q, dry_run);
+    }else{
+    add_queue_to_state_map(state_sequence, state_count, q, 0);
+    }
   }
 
 
@@ -1959,7 +1983,7 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
   q->state_count = 0;
   q->unfuzzed_state_count = 0;
   q->state_list_count = 0;
-  q->state_sequence_count = 1;
+  q->state_sequence_count = 0;
   q->state_list_head = NULL;
   q->state_list_tail = NULL;
   q->to_add_list = NULL;
@@ -2529,7 +2553,6 @@ static void update_bitmap_score(struct queue_entry* q) {
    previously-unseen bytes (temp_v) and marks them as favored, at least
    until the next run. The favored entries are given more air time during
    all fuzzing steps. */
-//TODO:这里是否需要修改？
 /* NOTE：到这里q与statemap中的节点还保持一一对应的关系
 cull_queue函数在最初调用一次，以后每个测试循环调用一次
 主要用来调整测试队列queue中的节点顺序 */
@@ -5810,7 +5833,7 @@ static void show_init_stats(void) {
 /* Write a modified test case, run program, process results. Handle
    error conditions, returning 1 if it's time to bail out. This is
    a helper function for fuzz_one(). */
-//TODO：需要进行仔细修改，将kl_message构建部分从M2构建，改为Mnext
+
 EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
   u8 fault;
@@ -5824,80 +5847,144 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
   write_to_testcase(out_buf, len);
 
-  /* AFLNet update kl_messages linked list */
+  if(state_selection_algo == STATE_MAP){
 
-  // parse the out_buf into messages
-  u32 region_count = 0;
-  region_t *regions = (*extract_requests)(out_buf, len, &region_count);
-  if (!region_count) PFATAL("AFLNet Region count cannot be Zero");
+    // parse the out_buf into messages
+    u32 region_count = 0;
+    region_t *regions = (*extract_requests)(out_buf, len, &region_count);
+    if (!region_count) PFATAL("AFLNet Region count cannot be Zero");
 
-  // update kl_messages linked list
-  u32 i;
-  kliter_t(lms) *prev_last_message, *cur_last_message;
-  prev_last_message = get_last_message(kl_messages);
+    u32 i;
+    kliter_t(lms) *prev_last_message, *cur_last_message;
+    prev_last_message = get_last_message(kl_messages);
 
-  // limit the #messages based on max_seed_region_count to reduce overhead
-  for (i = 0; i < region_count; i++) {
-    u32 len;
-    //Identify region size
-    if (i == max_seed_region_count) {
-      len = regions[region_count - 1].end_byte - regions[i].start_byte + 1;
-    } else {
-      len = regions[i].end_byte - regions[i].start_byte + 1;
+    for (i = 0; i < region_count; i++) {
+      u32 len;
+      //Identify region size
+      if (i == max_seed_region_count) {
+        len = regions[region_count - 1].end_byte - regions[i].start_byte + 1;
+      } else {
+        len = regions[i].end_byte - regions[i].start_byte + 1;
+      }
+
+      //Create a new message
+      message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+      m->mdata = (char *) ck_alloc(len);
+      m->msize = len;
+      if (m->mdata == NULL) PFATAL("Unable to allocate memory region to store new message");
+      memcpy(m->mdata, &out_buf[regions[i].start_byte], len);
+
+      //Insert the message to the linked list
+      *kl_pushp(lms, kl_messages) = m;
+      if (i == max_seed_region_count) break;
+
+    }
+    ck_free(regions);
+
+    cur_last_message = get_last_message(kl_messages);
+
+
+    kliter_t(lms) *it;
+    kliter_t(lms) *it_prev;
+    u32 slidtf = state_list_id_to_fuzz;
+    it = kl_begin(kl_messages);
+    for(u32 i = kl_start_id; i<= kl_end_id; i++){
+      if(i <= slidtf){
+        it_prev = it;
+        it = kl_next(it);
+        continue;
+      }else{
+        break;
+      }
     }
 
-    //Create a new message
-    message_t *m = (message_t *) ck_alloc(sizeof(message_t));
-    m->mdata = (char *) ck_alloc(len);
-    m->msize = len;
-    if (m->mdata == NULL) PFATAL("Unable to allocate memory region to store new message");
-    memcpy(m->mdata, &out_buf[regions[i].start_byte], len);
-
-    //Insert the message to the linked list
-    *kl_pushp(lms, kl_messages) = m;
-
-    //Update M2_next in case it points to the tail (M3 is empty)
-    //because the tail in klist is updated once a new entry is pushed into it
-    //in fact, the old tail storage is used to store the newly added entry and a new tail is created
-    if (M2_next->next == kl_end(kl_messages)) {
-      M2_next = kl_end(kl_messages);
-    }
-
-    if (i == max_seed_region_count) break;
-  }
-  ck_free(regions);
-
-  cur_last_message = get_last_message(kl_messages);
-
-  // update the linked list with the new M2 & free the previous M2
-
-  //detach the head of previous M2 from the list
-  kliter_t(lms) *old_M2_start;
-  if (M2_prev == NULL) {
-    old_M2_start = kl_begin(kl_messages);
-    kl_begin(kl_messages) = kl_next(prev_last_message);
-    kl_next(cur_last_message) = M2_next;
+    //update kl_messages with new rigions which is generated by fuzzing
+    kl_next(it_prev) = kl_next(prev_last_message);
+    kl_next(cur_last_message) = kl_next(it);
     kl_next(prev_last_message) = kl_end(kl_messages);
-  } else {
-    old_M2_start = kl_next(M2_prev);
-    kl_next(M2_prev) = kl_next(prev_last_message);
-    kl_next(cur_last_message) = M2_next;
-    kl_next(prev_last_message) = kl_end(kl_messages);
-  }
-
-  // free the previous M2
-  kliter_t(lms) *cur_it, *next_it;
-  cur_it = old_M2_start;
-  next_it = kl_next(cur_it);
-  do {
-    ck_free(kl_val(cur_it)->mdata);
-    ck_free(kl_val(cur_it));
-    kmp_free(lms, kl_messages->mp, cur_it);
+    ck_free(kl_val(it)->mdata);
+    ck_free(kl_val(it));
+    kmp_free(lms, kl_messages->mp, it);
     --kl_messages->size;
 
-    cur_it = next_it;
-    next_it = kl_next(next_it);
-  } while(cur_it != M2_next);
+
+  }else{
+    /* AFLNet update kl_messages linked list */
+
+    // parse the out_buf into messages
+    u32 region_count = 0;
+    region_t *regions = (*extract_requests)(out_buf, len, &region_count);
+    if (!region_count) PFATAL("AFLNet Region count cannot be Zero");
+
+    // update kl_messages linked list
+    u32 i;
+    kliter_t(lms) *prev_last_message, *cur_last_message;
+    prev_last_message = get_last_message(kl_messages);
+
+    // limit the #messages based on max_seed_region_count to reduce overhead
+    for (i = 0; i < region_count; i++) {
+      u32 len;
+      //Identify region size
+      if (i == max_seed_region_count) {
+        len = regions[region_count - 1].end_byte - regions[i].start_byte + 1;
+      } else {
+        len = regions[i].end_byte - regions[i].start_byte + 1;
+      }
+
+      //Create a new message
+      message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+      m->mdata = (char *) ck_alloc(len);
+      m->msize = len;
+      if (m->mdata == NULL) PFATAL("Unable to allocate memory region to store new message");
+      memcpy(m->mdata, &out_buf[regions[i].start_byte], len);
+
+      //Insert the message to the linked list
+      *kl_pushp(lms, kl_messages) = m;
+
+      //Update M2_next in case it points to the tail (M3 is empty)
+      //because the tail in klist is updated once a new entry is pushed into it
+      //in fact, the old tail storage is used to store the newly added entry and a new tail is created
+      if (M2_next->next == kl_end(kl_messages)) {
+        M2_next = kl_end(kl_messages);
+      }
+
+      if (i == max_seed_region_count) break;
+    }
+    ck_free(regions);
+
+    cur_last_message = get_last_message(kl_messages);
+
+    // update the linked list with the new M2 & free the previous M2
+
+    //detach the head of previous M2 from the list
+    kliter_t(lms) *old_M2_start;
+    if (M2_prev == NULL) {
+      old_M2_start = kl_begin(kl_messages);
+      kl_begin(kl_messages) = kl_next(prev_last_message);
+      kl_next(cur_last_message) = M2_next;
+      kl_next(prev_last_message) = kl_end(kl_messages);
+    } else {
+      old_M2_start = kl_next(M2_prev);
+      kl_next(M2_prev) = kl_next(prev_last_message);
+      kl_next(cur_last_message) = M2_next;
+      kl_next(prev_last_message) = kl_end(kl_messages);
+    }
+
+    // free the previous M2
+    kliter_t(lms) *cur_it, *next_it;
+    cur_it = old_M2_start;
+    next_it = kl_next(cur_it);
+    do {
+      ck_free(kl_val(cur_it)->mdata);
+      ck_free(kl_val(cur_it));
+      kmp_free(lms, kl_messages->mp, cur_it);
+      --kl_messages->size;
+
+      cur_it = next_it;
+      next_it = kl_next(next_it);
+    } while(cur_it != M2_next);
+  }
+
 
   /* End of AFLNet code */
 
@@ -6005,6 +6092,7 @@ static u32 calculate_score(struct queue_entry* q) {
   else if (q->exec_us * 3 < avg_exec_us) perf_score = 200;
   else if (q->exec_us * 2 < avg_exec_us) perf_score = 150;
 
+  //SMGFuzz:这里的分数需要在调试时调整
   /* Adjust score based on bitmap size. The working theory is that better
      coverage translates to better targets. Multiplier from 0.25x to 3x. */
 
@@ -6243,7 +6331,7 @@ static u8 could_be_interest(u32 old_val, u32 new_val, u8 blen, u8 check_le) {
 /* Take the current entry from the queue, fuzz it for a while. This
    function is a tad too long... returns 0 if fuzzed successfully, 1 if
    skipped or bailed out. */
-//TODO:对整个流程修改
+
 static u8 fuzz_one(char** argv) {
 
   s32 len, fd, temp_len, i, j;
@@ -6350,9 +6438,86 @@ AFLNET_REGIONS_SELECTION:;
     //SMGFuzz:生成本次变异所需的inbuf和outbuf,state_list_id_to_fuzz为0时，从to_add_list中取出的message作为kl_message
     //state_list_id_to_fuzz不为0时，从kl_messages中取出state_list_id_to_fuzz对应的message作为fuzz的message
     kliter_t(lms) *it;
-    
+    u32 in_buf_size = 0;
+    message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+
+    if(!state_list_id_to_fuzz){
+      //POINT_TO_ADD类型节点时
+      
+      if(!state_zero){
+        //从state_zero中随机选取一个节点，为to_add节点增加Mn_1作为fuzz的message
+        state_point_t * sz;
+        u32 rand_zero = UR(state_zero_count);
+        sz = state_zero;
+        for(sz; sz!=NULL; sz = sz->state_zero_next){
+          if(!rand_zero) break;
+          rand_zero--;
+        }
+        m->mdata = (char) ck_alloc(sz->Mn->msize);
+        m->msize = sz->Mn->msize;
+        memcpy(m->mdata, sz->Mn->mdata, sz->Mn->msize);
+        *kl_pushp(lms, kl_messages) = m;
+      }else{
+        //在state_zero为空时，从state_list中选取一个节点，为to_add节点增加Mn_1作为fuzz的message
+        u32 rand_sp = UR(queue_cur->state_count);
+        queue_states_list * sp;
+        sp = queue_cur->state_list_head;
+        for(sp; sp!=queue_cur->state_list_tail; sp = sp->next){
+          if(!rand_sp) break;
+          rand_sp--;
+        }
+        m->mdata = (char) ck_alloc(sp->Mn->msize);
+        m->msize = sp->Mn->msize;
+        memcpy(m->mdata, sp->Mn->mdata, sp->Mn->msize);
+        *kl_pushp(lms, kl_messages) = m;
+      }
+      //FIXME: m这里有可能为NULL
+
+      in_buf = (u8 *) ck_realloc (in_buf, m->msize);
+      memcpy(&in_buf[in_buf_size], m->mdata, m->msize);
+      in_buf_size = m->msize;
+      orig_in = in_buf;
+
+      out_buf = ck_alloc_nozero(in_buf_size);
+      memcpy(out_buf, in_buf, in_buf_size);
+
+      //Update len to keep the correct size of the buffer being mutated
+      len = in_buf_size;
+
+      //Save the len for later use
+      M2_len = len;
+      ck_free(m);
+      
+    }else{
+      //POINT_ADDED_TO_MAP类型节点时
+      u32 slidtf = state_list_id_to_fuzz;
+      queue_states_list * sp;
+      it = kl_begin(kl_messages);
+      for(u32 i = kl_start_id; i<= kl_end_id; i++){
+        if(i != slidtf){
+          it = kl_next(it);
+          continue;
+        }else{
+          break;
+        }
+      }
+      in_buf = (u8 *) ck_realloc (in_buf, kl_val(it)->msize);
+      memcpy(&in_buf[in_buf_size], kl_val(it)->mdata, kl_val(it)->msize);
+      in_buf_size = kl_val(it)->msize;
+
+      orig_in = in_buf;
+
+      out_buf = ck_alloc_nozero(in_buf_size);
+      memcpy(out_buf, in_buf, in_buf_size);
+
+      //Update len to keep the correct size of the buffer being mutated
+      len = in_buf_size;
+
+      //Save the len for later use
+      M2_len = len;
 
 
+    }
 
   }else{
       if (state_aware_mode) {
@@ -9743,38 +9908,19 @@ int main(int argc, char** argv) {
           seek_to--;
           queue_cur = queue_cur->next;
         }
+      }
+      while(!queue_cur->unfuzzed_state_count){
+        //SMGFuzz:AFLNet在每轮fuzz中选择一个种子作为测试目标，这样其实破坏了afl原有的选择队列，导致有些种子容易出现饿死的情况，且无法保证每轮覆盖所有的bitmap上的点
+        //是否延用这种方法？？否。。。
+        //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
+        selected_seed = state_map_choose_seed();
+        state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
 
-      //SMGFuzz:AFLNet在每轮fuzz中选择一个种子作为测试目标，这样其实破坏了afl原有的选择队列，导致有些种子容易出现饿死的情况，且无法保证每轮覆盖所有的bitmap上的点
-      //是否延用这种方法？？否。。。
-      //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
-      selected_seed = state_map_choose_seed();
-      state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
 
-
-        // show_stats();
-
-        // if (not_on_tty) {
-        //   ACTF("Entering queue cycle %llu.", queue_cycle);
-        //   fflush(stdout);
-        // }
-
-        // /* If we had a full queue cycle with no new finds, try
-        //    recombination strategies next. */
-
-        // if (queued_paths == prev_queued) {
-
-        //   if (use_splicing) cycles_wo_finds++; else use_splicing = 1;
-
-        // } else cycles_wo_finds = 0;
-
-        // prev_queued = queued_paths;
-
-        // if (sync_id && queue_cycle == 1 && getenv("AFL_IMPORT_FIRST"))
-        //   sync_fuzzers(use_argv);
-
+        skipped_fuzz = fuzz_one(use_argv);
+        queue_cur->unfuzzed_state_count--;
       }
 
-      skipped_fuzz = fuzz_one(use_argv);
 
       if (!stop_soon && sync_id && !skipped_fuzz) {
 
