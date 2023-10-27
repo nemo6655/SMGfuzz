@@ -681,6 +681,7 @@ u32 state_map_choose_state_point(struct queue_entry * q){
         }else{
           ssc--;
           if(!qslit->is_fuzzed && ssc == q->construct_sequence_id){
+            qslit->is_fuzzed++;
             return qslit->id;
           }
           if(start && ssc == q->construct_sequence_id){
@@ -692,10 +693,12 @@ u32 state_map_choose_state_point(struct queue_entry * q){
       }
       if(!qslit->message_end){
         if(!qslit->is_fuzzed){
+          qslit->is_fuzzed++;
           return qslit->id;
         }
       }else{
         if(!qslit->is_fuzzed){
+          qslit->is_fuzzed++;
           return qslit->id;
         }
         break;
@@ -703,6 +706,9 @@ u32 state_map_choose_state_point(struct queue_entry * q){
     }
     if(q->construct_sequence_id <= q->state_sequence_count){
       q->construct_sequence_id++;
+    }
+    if(qslit->next){
+    qslit->next->is_fuzzed++;
     }
     return tmp_id++;
   }
@@ -771,6 +777,10 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
 }
 
 struct state_point_t * get_state_point(u32 state_id){
+
+}
+
+void state_map_update_fuzz(unsigned int *state_sequence, unsigned int state_count){
 
 }
 
@@ -961,7 +971,8 @@ void update_fuzzs() {
     }
   }
   if(state_selection_algo == STATE_MAP){
-
+    state_map_update_fuzz(state_sequence, state_count);
+    
   }
 
   ck_free(state_sequence);
@@ -5991,6 +6002,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
   fault = run_target(argv, exec_tmout);
 
   //Update fuzz count, no matter whether the generated test is interesting or not
+  //TODO:更新queue_cur对应的state_map状态
   if (state_aware_mode) update_fuzzs();
 
   if (stop_soon) return 1;
@@ -6016,7 +6028,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
   }
 
   /* This handles FAULT_ERROR for us: */
-
+  //TODO:如果存储新的queue_entry，对应更新state_map
   queued_discovered += save_if_interesting(argv, out_buf, len, fault);
 
   if (!(stage_cur % stats_update_freq) || stage_cur + 1 == stage_max)
