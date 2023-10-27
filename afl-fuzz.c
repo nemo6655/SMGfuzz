@@ -539,13 +539,17 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
           //state_map中不存在该point
           kh_put(phs32, khs_point_hash, hashKey, &discard);
           add_point_to_statemap(m_prev, state_sequence[message_count-1], m, state_sequence[message_count], q, POINT_ADDED_TO_MAP);
-
         }
+
         if(state_sequence[message_count]==response_end_code){         
           m = NULL;
         }
       }
     }
+  }
+  if(!q->state_list_tail->message_end){
+    q->state_list_tail->message_end = 1;
+    q->state_sequence_count++;
   }
   if(dry_run){
     q->unfuzzed_state_count = q->state_count;
@@ -661,18 +665,35 @@ struct queue_entry *state_map_choose_seed(){
 
 u32 state_map_choose_state_point(struct queue_entry * q){
   queue_states_list * qslit = NULL;
-
+  u32 ssc = q->state_sequence_count;
   if(!q->to_add_list){
     return 0;
   }else{
-    for(qslit = q->state_list_tail; qslit!= q->state_list_head; qslit = qslit->prev){
-      if(!qslit->is_fuzzed){
-        return qslit->id;
+    for(qslit = q->state_list_tail; qslit->next!= q->state_list_head; qslit = qslit->prev){
+      if(ssc > q->construct_sequence_id){
+        if(!qslit->message_end){
+          continue;
+        }else{
+          ssc--;
+          continue;
+        }
+      }
+      if(!qslit->message_end){
+        if(!qslit->is_fuzzed){
+          return qslit->id;
+        }
+      }else{
+        if(q->construct_sequence_id <= q->state_sequence_count){
+          q->construct_sequence_id++;
+        }
+        if(!qslit->is_fuzzed){
+          return qslit->id;
+        }
+        break;
       }
     }
 
   }
-
 }
 
 
@@ -684,7 +705,7 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
   state_point_t * sp = NULL;
   u32 csi = queue_cur->construct_sequence_id;
 
-  if(!queue_cur->state_list_count){
+  if(!state_list_id_to_fuzz){
     for(sp=queue_cur->to_add_top; sp!=queue_cur->to_add_list; sp=sp->state_to_add_prev){
       if(!sp->is_fuzzed){
         message_t *m = (message_t *) ck_alloc(sizeof(message_t));
@@ -696,11 +717,12 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
     }
   }else{
     for(qslit = queue_cur->state_list_head; qslit->next!= NULL; qslit = qslit->next){
-      if(!csi){
+      if(csi > 0){
         if(!qslit->message_end){
           continue;
         }else{
           csi--;
+          continue;
         }
       }
       if(!qslit->message_end){
@@ -709,6 +731,13 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
         m->msize = qslit->Mn->msize;
         memcpy(m->mdata, qslit->Mn->mdata, qslit->Mn->msize);
         *kl_pushp(lms, kl_messages) = m;
+      }else{
+        message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+        m->mdata = (char) ck_alloc(qslit->Mn->msize);
+        m->msize = qslit->Mn->msize;
+        memcpy(m->mdata, qslit->Mn->mdata, qslit->Mn->msize);
+        *kl_pushp(lms, kl_messages) = m;
+        break;
       }
     }
   }
@@ -717,9 +746,7 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
   m->msize = qslit->Mn_1->msize;
   memcpy(m->mdata, qslit->Mn_1->mdata, qslit->Mn_1->msize);
   *kl_pushp(lms, kl_messages) = m;
-  if(queue_cur->construct_sequence_id <= queue_cur->state_sequence_count){
-    queue_cur->construct_sequence_id++;
-  }
+
    
   return kl_messages;
 }
@@ -6316,10 +6343,14 @@ AFLNET_REGIONS_SELECTION:;
       }
 
     }
-    //SMGFuzz:生成本次变异所需的inbuf和outbuf
-    //构建kl_messages链表
+    
+    //构建kl_messages链表,用于后续发送消息。
     kl_messages = construct_kl_messages_from_queue_states_list();
 
+    //SMGFuzz:生成本次变异所需的inbuf和outbuf,state_list_id_to_fuzz为0时，从to_add_list中取出的message作为kl_message
+    //state_list_id_to_fuzz不为0时，从kl_messages中取出state_list_id_to_fuzz对应的message作为fuzz的message
+    kliter_t(lms) *it;
+    
 
 
 
