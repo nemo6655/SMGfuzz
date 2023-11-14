@@ -39,11 +39,11 @@ typedef struct {
   unsigned int Rn;   //Response n
   u32 seeds_count;
   u8 point_type;
-  state_point_t *state_zero_next;
+  struct state_point_t *state_zero_next;
   u32 point_hash;
   u8 is_fuzzed;
-  state_point_t *state_to_add_next;
-  state_point_t *state_to_add_prev;
+  struct state_point_t *state_to_add_next;
+  struct state_point_t *state_to_add_prev;
   unsigned int Rn_1;   //Response n+1
   void     **seeds;  /* keep all seeds reaching this state */
 
@@ -58,12 +58,12 @@ typedef struct {
   u32 id;
   u8 is_fuzzed;
   u8 message_end;
-  state_point_t *state_point;
+  struct state_point_t *state_point;
   message_t * Mn;     //Message n
   message_t * Mn_1;   //Message n+1
 
-  queue_states_list *prev;
-  queue_states_list *next;
+  struct queue_states_list *prev;
+  struct queue_states_list *next;
 } queue_states_list;
 
 enum{

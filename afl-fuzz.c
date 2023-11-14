@@ -284,7 +284,7 @@ struct queue_entry {
   u32 construct_sequence_id;
   queue_states_list *state_list_head;
   queue_states_list *state_list_tail;
-  state_point_t *state_points[STATE_MAP_SIZE];
+  state_point_t *state_points[65535];
   state_point_t *to_add_list;
   state_point_t *to_add_top;
 };
@@ -450,7 +450,7 @@ state_point_t *state_zero = NULL;
 
 
 khash_t(sm) *khsm_state_map;
-klist_t(sl) *state_list;
+// klist_t(sl) *state_list;
 khash_t(phs32) *khs_point_hash;
 
 
@@ -468,6 +468,18 @@ region_t* (*extract_requests)(unsigned char* buf, unsigned int buf_size, unsigne
 //SMGFuzz:初始化state_map,此时全局变量kl_messages存储了q对应的seed的所有message。
 //从response_buf中解析出了state_sequence，对ftp协议来说，就是respones的头三个字节
 //state_sequence为类似[0,0x323230,0x323330]的数组，一个为0，第后面分别对应Rn，Rn+1....
+
+struct state_point_t *init_state_point(){
+  state_point_t *m = (state_point_t *) ck_alloc(sizeof(state_point_t));
+  m->Mn          = NULL;
+  m->Rn          = NULL;
+  m->Rn_1        = NULL;
+  m->seeds       = NULL;
+  m->seeds_count = 0;
+  m->is_fuzzed   = 0;
+  return m;
+}
+
 void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_count,struct queue_entry* q, u8 dry_run)
 {
   int discard; 
@@ -650,16 +662,7 @@ void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1
 
 }
 
-struct state_point_t * init_state_point(){
-  state_point_t *m = (state_point_t *) ck_alloc(sizeof(state_point_t));
-  m->Mn          = NULL;
-  m->Rn          = NULL;
-  m->Rn_1        = NULL;
-  m->seeds       = NULL;
-  m->seeds_count = 0;
-  m->is_fuzzed   = 0;
-  return m;
-}
+
 
 struct queue_entry *state_map_choose_seed(){
 
@@ -667,6 +670,7 @@ struct queue_entry *state_map_choose_seed(){
 
 u32 state_map_choose_state_point(struct queue_entry * q){
   queue_states_list * qslit = NULL;
+  queue_states_list * qt = NULL;
   u32 ssc = q->state_sequence_count;
   u32 tmp_id = 0;
   boolean start = TRUE;
@@ -708,7 +712,8 @@ u32 state_map_choose_state_point(struct queue_entry * q){
       q->construct_sequence_id++;
     }
     if(qslit->next){
-    qslit->next->is_fuzzed++;
+    qt = qslit->next;
+    qt->is_fuzzed++;
     }
     return tmp_id++;
   }
@@ -1146,7 +1151,7 @@ struct queue_entry *choose_seed(u32 target_state_id, u8 mode)
 
 /* Update state-aware variables */
 /* SMGFuzz:perform_dry_run调用时，这里完成对q所对应的序列中所有的statepoint加入statemap中 */
-//SMGFuzz:save_if_intresting调用时，完成对statemap的更新
+//SMGFuzz:save_if_intresting中如果增加了bitmap，则调用该函数，完成对statemap的更新
 void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
 {
   khint_t k;
@@ -1158,9 +1163,9 @@ void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
 
   unsigned int *state_sequence = (*extract_response_codes)(response_buf, response_buf_size, &state_count);
 
-  //SMGFuzz:初始化statemap
-
+  //SMGFuzz:初始化statemap,是否需要将dry_run与save_if_intresting分开处理？
   if(seed_selection_algo == STATE_MAP){
+    //
     if(dry_run){
     add_queue_to_state_map(state_sequence, state_count, q, dry_run);
     }else{
@@ -2038,7 +2043,6 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
     if (byte_count != len) PFATAL("AFLNet - Inconsistent file length '%s'", fname);
     q->regions = (*extract_requests)(buf, len, &q->region_count);
     ck_free(buf);
-    //SMGFuzz:第一次读取种子，这里完成regions的构建。
 
     // Keep track the maximal number of seed regions
     // We use this for some optimization to reduce the overhead while following the server's sequence diagram
@@ -2745,7 +2749,6 @@ static void read_testcases(void) {
 
   /* SMGFuzz:init statemap variables*/
   if(state_selection_algo == STATE_MAP){
-    state_list = kl_init(stal);
     khsm_state_map = kh_init(sm);
     //TODO:add other variables to init
   }
@@ -2786,9 +2789,7 @@ static void read_testcases(void) {
     if (!access(dfn, F_OK)) passed_det = 1;
     ck_free(dfn);
     //TODO:将当前文件中的nregions读取到内存中，并添加到queue_entry的regions中，目前考虑不需要修改。
-    /*SMGFuzz：这里存在一个问题，目前读取出的regions是连续的几个请求在一个regions里，statemap需要单独
-    的region进行初始化。perform_dry_run会对每个queue_entry进行初始化，在获得一个regions对应的返回序列后，进行statemap的初始化，将序列拆解构成
-    statemap中的点。*/
+    /*SMGFuzz：perform_dry_run会对每个queue_entry进行初始化，在获得一个regions对应的返回序列后，进行statemap的初始化，将序列拆解构成statemap中的点。*/
     add_to_queue(fn, st.st_size, passed_det);
 
   }
@@ -4027,15 +4028,14 @@ static void perform_dry_run(char** argv) {
     close(fd);
 
     /* AFLNet construct the kl_messages linked list for this queue entry*/
-    /* TODO：构建kl_messages是依据种子中的regions，regions是发送报文序列，这里需要
+    /* 构建kl_messages是依据种子中的regions，regions是发送报文序列，这里需要
     修改为statemap的初始节点，因为下面calibrate_case会调用run_target校准种子 */
     kl_messages = construct_kl_messages(q->fname, q->regions, q->region_count);
 
     res = calibrate_case(argv, q, use_mem, 0, 1);
     ck_free(use_mem);
     /* SMGFuzz:到这里每个q对应state_init_list中的一个元素，这里遍历整个种子队列，完成对state相关参数的更新
-  这里需要完成对statemap的初始化 */
-    /* SMGFuzz:获得了response_buf和response_buf_size */
+    这里需要完成对statemap的初始化 获得了response_buf和response_buf_size */
 
 
     /* Update state-aware variables (e.g., state machine, regions and their annotations */
@@ -6002,7 +6002,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
   fault = run_target(argv, exec_tmout);
 
   //Update fuzz count, no matter whether the generated test is interesting or not
-  //TODO:更新queue_cur对应的state_map状态
+
   if (state_aware_mode) update_fuzzs();
 
   if (stop_soon) return 1;
@@ -8748,8 +8748,8 @@ static void usage(u8* argv0) {
        "  -F            - enable false negative reduction mode (see README.md)\n"
        "  -c cleanup    - name or full path to the server cleanup script (see README.md)\n"
        "  -q algo       - state selection algorithm (See aflnet.h for all available options)\n"
-       "  -s algo       - seed selection algorithm (See aflnet.h for all available options)\n\n"
-       "  -r endcode    - endcode for the server (see README.md)\n" 
+       "  -s algo       - seed selection algorithm (See aflnet.h for all available options)\n"
+       "  -r endcode    - endcode for the server (see README.md)5556666\n\n" 
 
        "Other stuff:\n\n"
 
@@ -9768,6 +9768,7 @@ int main(int argc, char** argv) {
       case 'r':
         if (local_port) FATAL("Multiple -l options not supported");
         response_end_code = (unsigned int) atoi(optarg);
+        break;
 
 
       default:
