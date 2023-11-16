@@ -480,6 +480,43 @@ struct state_point_t *init_state_point(){
   return m;
 }
 
+void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1, struct queue_entry *q, struct state_point_t *sp){
+  queue_states_list * qsl = (queue_states_list *) ck_alloc(sizeof(queue_states_list));
+  message_t * m_prev = (message_t *) ck_alloc(sizeof(message_t));
+  message_t * m = (message_t *) ck_alloc(sizeof(message_t));
+  m_prev->mdata = (char) ck_alloc(Mn->msize);
+  m_prev->msize = Mn->msize;
+  memcpy(m_prev->mdata, Mn->mdata, Mn->msize);
+  qsl->Mn = m_prev;
+  m->mdata = (char) ck_alloc(Mn_1->msize);
+  m->msize = Mn_1->msize;
+  memcpy(m->mdata, Mn_1->mdata, Mn_1->msize);
+  qsl->Mn_1 = m;
+
+  q->state_list_count++;
+  qsl->id = q->state_list_count;
+  qsl->is_fuzzed = 0;
+  qsl->state_point = sp;
+
+  if(Rn_1 ==response_end_code){
+    qsl->message_end = 1;
+    q->state_sequence_count++;
+  }else{
+    qsl->message_end = 0;
+  }
+
+  
+  if(!q->state_list_head){
+    q->state_list_head = qsl;
+    q->state_list_tail = qsl;
+  }else{
+    q->state_list_tail->next = qsl;
+    qsl->prev = q->state_list_tail;
+    q->state_list_tail = qsl;
+  }
+
+}
+
 void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_count,struct queue_entry* q, u8 dry_run)
 {
   int discard; 
@@ -625,42 +662,7 @@ void add_point_to_zero(message_t * Mn, unsigned int Rn, struct queue_entry* q){
   }
 }
 
-void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1, struct queue_entry *q, struct state_point_t *sp){
-  queue_states_list * qsl = (queue_states_list *) ck_alloc(sizeof(queue_states_list));
-  message_t * m_prev = (message_t *) ck_alloc(sizeof(message_t));
-  message_t * m = (message_t *) ck_alloc(sizeof(message_t));
-  m_prev->mdata = (char) ck_alloc(Mn->msize);
-  m_prev->msize = Mn->msize;
-  memcpy(m_prev->mdata, Mn->mdata, Mn->msize);
-  qsl->Mn = m_prev;
-  m->mdata = (char) ck_alloc(Mn_1->msize);
-  m->msize = Mn_1->msize;
-  memcpy(m->mdata, Mn_1->mdata, Mn_1->msize);
-  qsl->Mn_1 = m;
 
-  q->state_list_count++;
-  qsl->id = q->state_list_count;
-  qsl->is_fuzzed = 0;
-  qsl->state_point = sp;
-
-  if(Rn_1 ==response_end_code){
-    qsl->message_end = 1;
-    q->state_sequence_count++;
-  }else{
-    qsl->message_end = 0;
-  }
-
-  
-  if(!q->state_list_head){
-    q->state_list_head = qsl;
-    q->state_list_tail = qsl;
-  }else{
-    q->state_list_tail->next = qsl;
-    qsl->prev = q->state_list_tail;
-    q->state_list_tail = qsl;
-  }
-
-}
 
 
 
