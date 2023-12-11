@@ -158,8 +158,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": false,
-      "cwd": "/home/ly/Projects/SMGfuzz",
-      "program": "/home/ly/Projects/SMGfuzz/build/Debug/outDebug",
+      "cwd": "/home/nemo/Projects/SMGfuzz",
+      "program": "/home/nemo/Projects/SMGfuzz/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

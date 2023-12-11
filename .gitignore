@@ -22,3 +22,5 @@ afl-llvm-rt-32.o
 afl-llvm-rt-64.o
 afl-llvm-rt.o
 .vscode/settings.json
+.vscode/launch.json
+.vscode/c_cpp_properties.json
