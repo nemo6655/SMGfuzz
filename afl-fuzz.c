@@ -483,12 +483,12 @@ struct state_point_t *init_state_point(){
 void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1, struct queue_entry *q, struct state_point_t *sp){
   queue_states_list * qsl = (queue_states_list *) ck_alloc(sizeof(queue_states_list));
   message_t * m_prev = (message_t *) ck_alloc(sizeof(message_t));
-  message_t * m = (message_t *) ck_alloc(sizeof(message_t));
-  m_prev->mdata = (char) ck_alloc(Mn->msize);
+  m_prev->mdata = (char *) ck_alloc(Mn->msize);
   m_prev->msize = Mn->msize;
   memcpy(m_prev->mdata, Mn->mdata, Mn->msize);
   qsl->Mn = m_prev;
-  m->mdata = (char) ck_alloc(Mn_1->msize);
+  message_t * m = (message_t *) ck_alloc(sizeof(message_t));
+  m->mdata = (char *) ck_alloc(Mn_1->msize);
   m->msize = Mn_1->msize;
   memcpy(m->mdata, Mn_1->mdata, Mn_1->msize);
   qsl->Mn_1 = m;
@@ -546,7 +546,7 @@ void add_point_to_statemap(message_t * Mn, unsigned int Rn, message_t * Mn_1, un
 void add_point_to_zero(message_t * Mn, unsigned int Rn, struct queue_entry* q){
   state_point_t * sp = init_state_point();
   message_t * m = (message_t *) ck_alloc(sizeof(message_t));
-  m->mdata = (char) ck_alloc(Mn->msize);
+  m->mdata = (char *) ck_alloc(Mn->msize);
   m->msize = Mn->msize;
   memcpy(m->mdata, Mn->mdata, Mn->msize);
   sp->id = 0;
@@ -598,7 +598,7 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
             //只有源状态没有目的状态情况下,加入queue_entry的state_to_add_list,变异时优先变异。
             sp = init_state_point();
             message_t * mm = (message_t *) ck_alloc(sizeof(message_t));
-            mm->mdata = (char) ck_alloc(m->msize);
+            mm->mdata = (char *) ck_alloc(m->msize);
             mm->msize = m->msize;
             memcpy(mm->mdata, m->mdata, m->msize);
             sp->Mn = mm;
@@ -738,7 +738,7 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
     for(sp=queue_cur->to_add_top; sp!=queue_cur->to_add_list->state_to_add_prev; sp=sp->state_to_add_prev){
       if(!sp->is_fuzzed){
         message_t *m = (message_t *) ck_alloc(sizeof(message_t));
-        m->mdata = (char) ck_alloc(sp->Mn->msize);
+        m->mdata = (char *) ck_alloc(sp->Mn->msize);
         m->msize = sp->Mn->msize;
         memcpy(m->mdata, sp->Mn->mdata, sp->Mn->msize);
         *kl_pushp(lms, kl_messages) = m;
@@ -760,13 +760,13 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
           start = FALSE;
         }
         message_t *m = (message_t *) ck_alloc(sizeof(message_t));
-        m->mdata = (char) ck_alloc(qslit->Mn->msize);
+        m->mdata = (char *) ck_alloc(qslit->Mn->msize);
         m->msize = qslit->Mn->msize;
         memcpy(m->mdata, qslit->Mn->mdata, qslit->Mn->msize);
         *kl_pushp(lms, kl_messages) = m;
       }else{
         message_t *m = (message_t *) ck_alloc(sizeof(message_t));
-        m->mdata = (char) ck_alloc(qslit->Mn->msize);
+        m->mdata = (char *) ck_alloc(qslit->Mn->msize);
         m->msize = qslit->Mn->msize;
         memcpy(m->mdata, qslit->Mn->mdata, qslit->Mn->msize);
         *kl_pushp(lms, kl_messages) = m;
@@ -775,7 +775,7 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
     }
     kl_end_id = qslit->id;
     message_t *m = (message_t *) ck_alloc(sizeof(message_t));
-    m->mdata = (char) ck_alloc(qslit->Mn_1->msize);
+    m->mdata = (char *) ck_alloc(qslit->Mn_1->msize);
     m->msize = qslit->Mn_1->msize;
     memcpy(m->mdata, qslit->Mn_1->mdata, qslit->Mn_1->msize);
     *kl_pushp(lms, kl_messages) = m;
@@ -2754,6 +2754,7 @@ static void read_testcases(void) {
   /* SMGFuzz:init statemap variables*/
   if(state_selection_algo == STATE_MAP){
     khsm_state_map = kh_init(sm);
+    khs_point_hash = kh_init(phs32);
     //TODO:add other variables to init
   }
 
@@ -2793,7 +2794,6 @@ static void read_testcases(void) {
     if (!access(dfn, F_OK)) passed_det = 1;
     ck_free(dfn);
     //TODO:将当前文件中的nregions读取到内存中，并添加到queue_entry的regions中，目前考虑不需要修改。
-    /*SMGFuzz：perform_dry_run会对每个queue_entry进行初始化，在获得一个regions对应的返回序列后，进行statemap的初始化，将序列拆解构成statemap中的点。*/
     add_to_queue(fn, st.st_size, passed_det);
 
   }
@@ -3883,7 +3883,6 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
     write_to_testcase(use_mem, q->len);
 
     fault = run_target(argv, use_tmout);
-    /* SMGFuzz:这里执行结束后获得了发送序列M对应的char *response_buf,和 int response_buf_size/
     /* stop_soon is set by the handler for Ctrl+C. When it's pressed,
        we want to bail out quickly. */
 
@@ -9902,58 +9901,58 @@ int main(int argc, char** argv) {
     
     //SMGFuzz:statemap模式循环
     if(seed_selection_algo == STATE_MAP){
-    //TODO:在一轮测试中，需要完成一次bitmap的覆盖，从bitmap对应的statemap中寻找能够覆盖当前bitmap的所有状态集，组成测试队列
-    if(state_map_count == 0){
-      PFATAL("No state map has been detected. Server responses are likely empty!");
-    }
-    while(1){
-      u8 skipped_fuzz;
-      struct queue_entry *selected_seed = NULL;
-      cull_queue();
-      
+      //TODO:在一轮测试中，需要完成一次bitmap的覆盖，从bitmap对应的statemap中寻找能够覆盖当前bitmap的所有状态集，组成测试队列
+      if(state_map_count == 0){
+        PFATAL("No state map has been detected. Server responses are likely empty!");
+      }
+      while(1){
+        u8 skipped_fuzz;
+        struct queue_entry *selected_seed = NULL;
+        cull_queue();
+        
 
 
-      if (!queue_cur) {
+        if (!queue_cur) {
 
-        queue_cycle++;
-        current_entry     = 0;
-        cur_skipped_paths = 0;
-        queue_cur         = queue;
+          queue_cycle++;
+          current_entry     = 0;
+          cur_skipped_paths = 0;
+          queue_cur         = queue;
 
-        while (seek_to) {
-          current_entry++;
-          seek_to--;
-          queue_cur = queue_cur->next;
+          while (seek_to) {
+            current_entry++;
+            seek_to--;
+            queue_cur = queue_cur->next;
+          }
         }
+        while(!queue_cur->unfuzzed_state_count){
+          //SMGFuzz:AFLNet在每轮fuzz中选择一个种子作为测试目标，这样其实破坏了afl原有的选择队列，导致有些种子容易出现饿死的情况，且无法保证每轮覆盖所有的bitmap上的点
+          //是否延用这种方法？？否。。。
+          //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
+          selected_seed = state_map_choose_seed();
+          state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
+
+
+          skipped_fuzz = fuzz_one(use_argv);
+          queue_cur->unfuzzed_state_count--;
+        }
+
+
+        if (!stop_soon && sync_id && !skipped_fuzz) {
+
+          if (!(sync_interval_cnt++ % SYNC_INTERVAL))
+            sync_fuzzers(use_argv);
+
+        }
+
+        if (!stop_soon && exit_1) stop_soon = 2;
+
+        if (stop_soon) break;
+
+        //NOTE:在有seed选择和state选择情况下是否需要更新queue_cur？
+        queue_cur = queue_cur->next;
+        current_entry++;
       }
-      while(!queue_cur->unfuzzed_state_count){
-        //SMGFuzz:AFLNet在每轮fuzz中选择一个种子作为测试目标，这样其实破坏了afl原有的选择队列，导致有些种子容易出现饿死的情况，且无法保证每轮覆盖所有的bitmap上的点
-        //是否延用这种方法？？否。。。
-        //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
-        selected_seed = state_map_choose_seed();
-        state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
-
-
-        skipped_fuzz = fuzz_one(use_argv);
-        queue_cur->unfuzzed_state_count--;
-      }
-
-
-      if (!stop_soon && sync_id && !skipped_fuzz) {
-
-        if (!(sync_interval_cnt++ % SYNC_INTERVAL))
-          sync_fuzzers(use_argv);
-
-      }
-
-      if (!stop_soon && exit_1) stop_soon = 2;
-
-      if (stop_soon) break;
-
-      //NOTE:在有seed选择和state选择情况下是否需要更新queue_cur？
-      queue_cur = queue_cur->next;
-      current_entry++;
-    }
     
     }else{
 

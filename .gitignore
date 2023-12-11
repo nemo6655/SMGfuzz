@@ -24,3 +24,4 @@ afl-llvm-rt.o
 .vscode/settings.json
 .vscode/launch.json
 .vscode/c_cpp_properties.json
+.vscode/launch.json
