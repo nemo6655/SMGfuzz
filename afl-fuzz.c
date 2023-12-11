@@ -517,6 +517,59 @@ void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1
 
 }
 
+void add_point_to_statemap(message_t * Mn, unsigned int Rn, message_t * Mn_1, unsigned int Rn_1,struct queue_entry* q, u8 add_queue_type){
+  int discard;
+  khint_t k;
+  state_map_count++;
+  state_point_t * sp = init_state_point();
+  sp->id = state_map_count;
+  sp->Rn = Rn;
+  sp->Rn_1 = Rn_1;
+
+  sp->seeds = (void **) ck_realloc (sp->seeds, (sp->seeds_count + 1) * sizeof(void *));
+  sp->seeds[sp->seeds_count] = (void *)q;
+  sp->seeds_count++;
+  sp->point_type = add_queue_type;
+  q->state_count++;
+  q->unfuzzed_state_count++;
+
+  q->state_points[sp->id] = sp;
+  add_point_to_queue_list(Mn, Mn_1, Rn_1, q, sp);
+
+  k = kh_put(sm, khsm_state_map, state_map_count, &discard);
+  kh_value(khsm_state_map, k) = sp;
+
+  
+  state_map[state_map_count/16][state_map_count%16] = sp;
+}
+
+void add_point_to_zero(message_t * Mn, unsigned int Rn, struct queue_entry* q){
+  state_point_t * sp = init_state_point();
+  message_t * m = (message_t *) ck_alloc(sizeof(message_t));
+  m->mdata = (char) ck_alloc(Mn->msize);
+  m->msize = Mn->msize;
+  memcpy(m->mdata, Mn->mdata, Mn->msize);
+  sp->id = 0;
+  sp->Mn = m;
+  sp->Rn = Rn;
+  sp->seeds = (void **) ck_realloc (sp->seeds, (sp->seeds_count + 1) * sizeof(void *));
+  sp->seeds[sp->seeds_count] = (void *)q;
+  sp->seeds_count++;
+  sp->point_type = POINT_ZERO;
+  state_zero_count++;
+
+  if(!state_zero){
+    state_map[0][0] = state_zero = state_zero_top = sp;
+    state_map_count++;
+  }else{
+    state_zero_top->state_zero_next = sp;
+    state_zero_top = sp;
+  }
+  if(!q->state_points[0]){
+    q->state_points[0] = state_map[0][0];
+  }
+}
+
 void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_count,struct queue_entry* q, u8 dry_run)
 {
   int discard; 
@@ -609,58 +662,7 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
 //SMGFuzz: 将POINT_TO_ADD的state_point添加到state_map中
 
 
-void add_point_to_statemap(message_t * Mn, unsigned int Rn, message_t * Mn_1, unsigned int Rn_1,struct queue_entry* q, u8 add_queue_type){
-  int discard;
-  khint_t k;
-  state_map_count++;
-  state_point_t * sp = init_state_point();
-  sp->id = state_map_count;
-  sp->Rn = Rn;
-  sp->Rn_1 = Rn_1;
 
-  sp->seeds = (void **) ck_realloc (sp->seeds, (sp->seeds_count + 1) * sizeof(void *));
-  sp->seeds[sp->seeds_count] = (void *)q;
-  sp->seeds_count++;
-  sp->point_type = add_queue_type;
-  q->state_count++;
-  q->unfuzzed_state_count++;
-
-  q->state_points[sp->id] = sp;
-  add_point_to_queue_list(Mn, Mn_1, Rn_1, q, sp);
-
-  k = kh_put(sm, khsm_state_map, state_map_count, &discard);
-  kh_value(khsm_state_map, k) = sp;
-
-  
-  state_map[state_map_count/16][state_map_count%16] = sp;
-}
-
-void add_point_to_zero(message_t * Mn, unsigned int Rn, struct queue_entry* q){
-  state_point_t * sp = init_state_point();
-  message_t * m = (message_t *) ck_alloc(sizeof(message_t));
-  m->mdata = (char) ck_alloc(Mn->msize);
-  m->msize = Mn->msize;
-  memcpy(m->mdata, Mn->mdata, Mn->msize);
-  sp->id = 0;
-  sp->Mn = m;
-  sp->Rn = Rn;
-  sp->seeds = (void **) ck_realloc (sp->seeds, (sp->seeds_count + 1) * sizeof(void *));
-  sp->seeds[sp->seeds_count] = (void *)q;
-  sp->seeds_count++;
-  sp->point_type = POINT_ZERO;
-  state_zero_count++;
-
-  if(!state_zero){
-    state_map[0][0] = state_zero = state_zero_top = sp;
-    state_map_count++;
-  }else{
-    state_zero_top->state_zero_next = sp;
-    state_zero_top = sp;
-  }
-  if(!q->state_points[0]){
-    q->state_points[0] = state_map[0][0];
-  }
-}
 
 
 
@@ -9768,7 +9770,7 @@ int main(int argc, char** argv) {
         /* SMGfuzz:set the response code of the protocol's end state*/
         //BUG:结束标志可能不止一个！！
       case 'r':
-        if (local_port) FATAL("Multiple -l options not supported");
+        if (response_end_code) FATAL("Multiple -r options not supported");
         response_end_code = (unsigned int) atoi(optarg);
         break;
 
