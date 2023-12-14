@@ -497,6 +497,7 @@ void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1
   qsl->id = q->state_list_count;
   qsl->is_fuzzed = 0;
   qsl->state_point = sp;
+  qsl->sequence_id = q->state_sequence_count;
 
   if(Rn_1 ==response_end_code){
     qsl->message_end = 1;
@@ -675,47 +676,27 @@ struct queue_entry *state_map_choose_seed(){
 u32 state_map_choose_state_point(struct queue_entry * q){
   queue_states_list * qslit = NULL;
   queue_states_list * qt = NULL;
-  u32 ssc = q->state_sequence_count;
-  u32 tmp_id = 0;
-  boolean start = TRUE;
 
-  for(qslit = q->state_list_tail; qslit!= NULL; qslit = qslit->prev){
-    if(ssc > q->construct_sequence_id){
-      if(!qslit->message_end){
-        continue;
-      }else{
-        ssc--;
-        if(!qslit->is_fuzzed && ssc == q->construct_sequence_id){
-          qslit->is_fuzzed++;
-          return qslit->id;
-        }
-        if(start && ssc == q->construct_sequence_id){
-          tmp_id = qslit->id;
-          qt = qslit;
-          start = FALSE;
-        }
-        continue;
-      }
-    }else{
+  for(qslit = q->state_list_head; qslit!= NULL; qslit = qslit->next){
+    if(qslit->sequence_id == q->construct_sequence_id){
       if(!qslit->is_fuzzed){
         qslit->is_fuzzed++;
         return qslit->id;
       }
+      if(qslit->message_end){
+        break;
+      }
     }
   }
-  if(q->construct_sequence_id < q->state_sequence_count){
+  if(q->construct_sequence_id < q->state_sequence_count - 1){
     q->construct_sequence_id++;
-  }
-  if(qt&&tmp_id < q->state_list_count){
-    if(qt->next){
-      qt = qt->next;
-      qt->is_fuzzed++;
-      return tmp_id++;
-    }
+    qslit = qslit->next;
+    qslit->is_fuzzed++;
+    return qslit->id;
   }else{
     q->unfuzzed_state_count = 0;
     q->was_fuzzed = 1;
-    return tmp_id;
+    return 0;
   }
 }
 
@@ -738,15 +719,7 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
     *kl_pushp(lms, kl_messages) = m;
   }else{
     for(qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next){
-      if(csi > 0){
-        if(!qslit->message_end){
-          continue;
-        }else{
-          csi--;
-          continue;
-        }
-      }
-      if(!qslit->message_end){
+      if(qslit->sequence_id == q->construct_sequence_id){
         if(start){
           kl_start_id = qslit->id;
           start = FALSE;
@@ -756,24 +729,18 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
         m->msize = qslit->Mn->msize;
         memcpy(m->mdata, qslit->Mn->mdata, qslit->Mn->msize);
         *kl_pushp(lms, kl_messages) = m;
-      }else{
-        message_t *m = (message_t *) ck_alloc(sizeof(message_t));
-        m->mdata = (char *) ck_alloc(qslit->Mn->msize);
-        m->msize = qslit->Mn->msize;
-        memcpy(m->mdata, qslit->Mn->mdata, qslit->Mn->msize);
-        *kl_pushp(lms, kl_messages) = m;
-        break;
+        if(qslit->message_end){
+          kl_end_id = qslit->id;
+          message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+          m->mdata = (char *) ck_alloc(qslit->Mn_1->msize);
+          m->msize = qslit->Mn_1->msize;
+          memcpy(m->mdata, qslit->Mn_1->mdata, qslit->Mn_1->msize);
+          *kl_pushp(lms, kl_messages) = m;
+          break;
+        }
       }
     }
-    kl_end_id = qslit->id;
-    message_t *m = (message_t *) ck_alloc(sizeof(message_t));
-    m->mdata = (char *) ck_alloc(qslit->Mn_1->msize);
-    m->msize = qslit->Mn_1->msize;
-    memcpy(m->mdata, qslit->Mn_1->mdata, qslit->Mn_1->msize);
-    *kl_pushp(lms, kl_messages) = m;
   }
-
-   
   return kl_messages;
 }
 

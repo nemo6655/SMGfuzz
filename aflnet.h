@@ -58,6 +58,7 @@ typedef struct {
   u32 id;
   u8 is_fuzzed;
   u8 message_end;
+  u32 sequence_id;
   struct state_point_t *state_point;
   message_t * Mn;     //Message n
   message_t * Mn_1;   //Message n+1
