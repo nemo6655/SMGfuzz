@@ -719,7 +719,7 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
     *kl_pushp(lms, kl_messages) = m;
   }else{
     for(qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next){
-      if(qslit->sequence_id == q->construct_sequence_id){
+      if(qslit->sequence_id == queue_cur->construct_sequence_id){
         if(start){
           kl_start_id = qslit->id;
           start = FALSE;
