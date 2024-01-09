@@ -675,26 +675,25 @@ struct queue_entry *state_map_choose_seed(){
 
 u32 state_map_choose_state_point(struct queue_entry * q){
   queue_states_list * qslit = NULL;
-  queue_states_list * qt = NULL;
+  u32 pre_qslit_message_end = 0;
+
 
   for(qslit = q->state_list_head; qslit!= NULL; qslit = qslit->next){
     if(qslit->sequence_id == q->construct_sequence_id){
       if(!qslit->is_fuzzed){
         qslit->is_fuzzed++;
+        if(pre_qslit_message_end){
+          q->construct_sequence_id++;
+        }
         return qslit->id;
-      }
-      if(qslit->message_end){
-        break;
+      }else{
+        pre_qslit_message_end = qslit->message_end;
       }
     }
   }
-  if(q->construct_sequence_id < q->state_sequence_count - 1){
-    q->construct_sequence_id++;
-    qslit = qslit->next;
-    qslit->is_fuzzed++;
-    return qslit->id;
-  }else{
+  if(q->construct_sequence_id == q->state_sequence_count){
     q->unfuzzed_state_count = 0;
+    q->construct_sequence_id = 0;
     q->was_fuzzed = 1;
     return 0;
   }
@@ -6518,7 +6517,6 @@ AFLNET_REGIONS_SELECTION:;
 
       //Save the len for later use
       M2_len = len;
-      // ck_free(m);
       
     }else{
       //POINT_ADDED_TO_MAP类型节点时
@@ -8280,8 +8278,9 @@ abandon_entry:
 
   if(state_selection_algo == STATE_MAP){
     if (!stop_soon && !queue_cur->cal_failed && !queue_cur->was_fuzzed) {
+      queue_cur->unfuzzed_state_count--;
       if(queue_cur->unfuzzed_state_count == 0) {
-        queue_cur->was_fuzzed = 1;
+        // queue_cur->was_fuzzed = 1;
         was_fuzzed_map[get_state_index(target_state_id)][queue_cur->index] = 1;
         pending_not_fuzzed--;
         if (queue_cur->favored) pending_favored--;
@@ -9956,7 +9955,7 @@ int main(int argc, char** argv) {
             queue_cur = queue_cur->next;
           }
         }
-        while(queue_cur->unfuzzed_state_count){
+        while(queue_cur->unfuzzed_state_count > 0){
           //SMGFuzz:AFLNet在每轮fuzz中选择一个种子作为测试目标，这样其实破坏了afl原有的选择队列，导致有些种子容易出现饿死的情况，且无法保证每轮覆盖所有的bitmap上的点
           //是否延用这种方法？？否。。。
           //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
@@ -9964,11 +9963,9 @@ int main(int argc, char** argv) {
           if(!queue_cur->to_add_list){
             state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
           }
-
-
-
-          skipped_fuzz = fuzz_one(use_argv);
-          queue_cur->unfuzzed_state_count--;
+          if(!state_list_id_to_fuzz){
+            skipped_fuzz = fuzz_one(use_argv);
+          }
         }
 
 
