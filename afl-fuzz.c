@@ -9965,6 +9965,8 @@ int main(int argc, char** argv) {
           }
           if(!state_list_id_to_fuzz){
             skipped_fuzz = fuzz_one(use_argv);
+          }else{
+            queue_cur->was_fuzzed = 1
           }
         }
 
