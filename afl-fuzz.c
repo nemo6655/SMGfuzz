@@ -656,9 +656,9 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
     q->state_list_tail->message_end = 1;
     q->state_sequence_count++;
   }
-  if(dry_run){
-    q->unfuzzed_state_count = q->state_count;
-  }
+
+  q->unfuzzed_state_count = q->state_count;
+
 }
 //SMGFuzz: 将POINT_TO_ADD的state_point添加到state_map中
 
@@ -1127,12 +1127,7 @@ void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
 
   //SMGFuzz:初始化statemap,是否需要将dry_run与save_if_intresting分开处理？
   if(seed_selection_algo == STATE_MAP){
-    //
-    if(dry_run){
     add_queue_to_state_map(state_sequence, state_count, q, dry_run);
-    }else{
-    add_queue_to_state_map(state_sequence, state_count, q, 0);
-    }
   }
 
 
@@ -8280,7 +8275,7 @@ abandon_entry:
     if (!stop_soon && !queue_cur->cal_failed && !queue_cur->was_fuzzed) {
       queue_cur->unfuzzed_state_count--;
       if(queue_cur->unfuzzed_state_count == 0) {
-        // queue_cur->was_fuzzed = 1;
+        queue_cur->was_fuzzed = 1;
         was_fuzzed_map[get_state_index(target_state_id)][queue_cur->index] = 1;
         pending_not_fuzzed--;
         if (queue_cur->favored) pending_favored--;
@@ -9955,19 +9950,22 @@ int main(int argc, char** argv) {
             queue_cur = queue_cur->next;
           }
         }
-        while(queue_cur->unfuzzed_state_count > 0){
-          //SMGFuzz:AFLNet在每轮fuzz中选择一个种子作为测试目标，这样其实破坏了afl原有的选择队列，导致有些种子容易出现饿死的情况，且无法保证每轮覆盖所有的bitmap上的点
-          //是否延用这种方法？？否。。。
-          //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
-          selected_seed = state_map_choose_seed();
-          if(!queue_cur->to_add_list){
-            state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
+        //SMGFuzz:AFLNet在每轮fuzz中选择一个种子作为测试目标，这样其实破坏了afl原有的选择队列，导致有些种子容易出现饿死的情况，且无法保证每轮覆盖所有的bitmap上的点
+        //是否延用这种方法？？否。。。
+        //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
+        selected_seed = state_map_choose_seed();
+        if(!queue_cur->to_add_list){
+          if(queue_cur->unfuzzed_state_count == 0){
+            for(queue_states_list * qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next)
+              qslit->is_fuzzed = 0;
           }
-          if(!state_list_id_to_fuzz){
-            skipped_fuzz = fuzz_one(use_argv);
-          }else{
-            queue_cur->was_fuzzed = 1;
-          }
+          state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
+        }
+        if(state_list_id_to_fuzz || queue_cur->to_add_list){
+          skipped_fuzz = fuzz_one(use_argv);
+        }else{
+          queue_cur->was_fuzzed = 1;
+          queue_cur->unfuzzed_state_count = 0;
         }
 
 
@@ -9983,8 +9981,10 @@ int main(int argc, char** argv) {
         if (stop_soon) break;
 
         //NOTE:在有seed选择和state选择情况下是否需要更新queue_cur？
-        queue_cur = queue_cur->next;
-        current_entry++;
+        if(queue_cur->unfuzzed_state_count == 0 && skipped_fuzz == 1){
+          queue_cur = queue_cur->next;
+          current_entry++;
+        }
       }
     
     }else{
