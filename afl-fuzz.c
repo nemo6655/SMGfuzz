@@ -6464,7 +6464,7 @@ AFLNET_REGIONS_SELECTION:;
     if(queue_cur->to_add_list){
       //POINT_TO_ADD类型节点时
       
-      if(!state_zero){
+      if(state_zero){
         //从state_zero中随机选取一个节点，为to_add节点增加Mn_1作为fuzz的message
         state_point_t * sz;
         u32 rand_zero = UR(state_zero_count);
@@ -6479,16 +6479,26 @@ AFLNET_REGIONS_SELECTION:;
         *kl_pushp(lms, kl_messages) = m;
       }else{
         //在state_zero为空时，从state_list中选取一个节点，为to_add节点增加Mn_1作为fuzz的message
-        u32 rand_sp = UR(queue_cur->state_count);
-        queue_states_list * sp;
-        for(sp = queue_cur->state_list_head; sp!=queue_cur->state_list_tail; sp = sp->next){
-          if(!rand_sp) break;
-          rand_sp--;
+        if(queue_cur->state_list_head){
+          u32 rand_sp = UR(queue_cur->state_count);
+          queue_states_list * sp;
+          for(sp = queue_cur->state_list_head; sp!=queue_cur->state_list_tail; sp = sp->next){
+            if(!rand_sp) break;
+            rand_sp--;
+          }
+          m->mdata = (char *) ck_alloc(sp->Mn->msize);
+          m->msize = sp->Mn->msize;
+          memcpy(m->mdata, sp->Mn->mdata, sp->Mn->msize);
+          *kl_pushp(lms, kl_messages) = m;
+        }else{
+          state_point_t * spt;
+          spt = queue_cur->to_add_top;
+          m->mdata = (char *) ck_alloc(spt->Mn->msize);
+          m->msize = spt->Mn->msize;
+          memcpy(m->mdata, spt->Mn->mdata, spt->Mn->msize);
+          *kl_pushp(lms, kl_messages) = m;
         }
-        m->mdata = (char *) ck_alloc(sp->Mn->msize);
-        m->msize = sp->Mn->msize;
-        memcpy(m->mdata, sp->Mn->mdata, sp->Mn->msize);
-        *kl_pushp(lms, kl_messages) = m;
+
       }
       //FIXME: m这里有可能为NULL
       M2_prev = kl_begin(kl_messages);
