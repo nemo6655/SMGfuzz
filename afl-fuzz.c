@@ -6491,11 +6491,10 @@ AFLNET_REGIONS_SELECTION:;
           memcpy(m->mdata, sp->Mn->mdata, sp->Mn->msize);
           *kl_pushp(lms, kl_messages) = m;
         }else{
-          state_point_t * spt;
-          spt = queue_cur->to_add_top;
-          m->mdata = (char *) ck_alloc(spt->Mn->msize);
-          m->msize = spt->Mn->msize;
-          memcpy(m->mdata, spt->Mn->mdata, spt->Mn->msize);
+          it = kl_begin(kl_messages);
+          m->mdata = (char *) ck_alloc(kl_val(it)->msize);
+          m->msize = kl_val(it)->msize;
+          memcpy(m->mdata, kl_val(it)->mdata, kl_val(it)->msize);
           *kl_pushp(lms, kl_messages) = m;
         }
 
