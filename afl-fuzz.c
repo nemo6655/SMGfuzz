@@ -694,7 +694,7 @@ u32 state_map_choose_state_point(struct queue_entry * q){
   if(q->construct_sequence_id == q->state_sequence_count){
     q->unfuzzed_state_count = 0;
     q->construct_sequence_id = 0;
-    q->was_fuzzed = 1;
+    q->was_fuzzed = 0;
     return 0;
   }
 }
