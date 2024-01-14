@@ -1952,6 +1952,7 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
   q->generating_state_id = target_state_id;
   q->is_initial_seed = 0;
   q->unique_state_count = 0;
+  q->was_fuzzed = 0;
   //SMGFuzz:初始化state_map相关参数
   q->state_count = 0;
   q->unfuzzed_state_count = 0;
