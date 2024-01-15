@@ -396,7 +396,7 @@ char **was_fuzzed_map = NULL; /* A 2D array keeping state-specific was_fuzzed in
 
 
 
-unsigned int response_end_code = 0;
+unsigned int response_end_code[16];
 
 /* SMGfuzz -specific variables & functions */
 u32 fuzzed_map_states = 0;
@@ -469,6 +469,15 @@ region_t* (*extract_requests)(unsigned char* buf, unsigned int buf_size, unsigne
 //从response_buf中解析出了state_sequence，对ftp协议来说，就是respones的头三个字节
 //state_sequence为类似[0,0x323230,0x323330]的数组，一个为0，第后面分别对应Rn，Rn+1....
 
+int in_response_end_codes(unsigned int response_code){
+  for(int i = 0; i < 16; i++){
+    if(response_end_code[i] == response_code){
+      return 1;
+    }
+  }
+  return 0;
+}
+
 struct state_point_t *init_state_point(){
   state_point_t *m = (state_point_t *) ck_alloc(sizeof(state_point_t));
   m->Mn          = NULL;
@@ -499,7 +508,7 @@ void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1
   qsl->state_point = sp;
   qsl->sequence_id = q->state_sequence_count;
 
-  if(Rn_1 ==response_end_code){
+  if(in_response_end_codes(Rn_1)){
     qsl->message_end = 1;
     q->state_sequence_count++;
   }else{
@@ -591,7 +600,7 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
       m = kl_val(it);
       message_count++;
       if(!m_prev){
-        if(state_sequence[message_count]==response_end_code){
+        if(in_response_end_codes(state_sequence[message_count])){
           add_point_to_zero(m, state_sequence[message_count], q);
           m = NULL;
         }else{
@@ -646,7 +655,7 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
           add_point_to_statemap(m_prev, state_sequence[message_count-1], m, state_sequence[message_count], q, POINT_ADDED_TO_MAP, hashKey);
         }
 
-        if(state_sequence[message_count]==response_end_code){         
+        if(in_response_end_codes(state_sequence[message_count])){         
           m = NULL;
         }
       }
@@ -9805,7 +9814,15 @@ int main(int argc, char** argv) {
         //BUG:结束标志可能不止一个！！
       case 'r':
         if (response_end_code) FATAL("Multiple -r options not supported");
-        response_end_code = (unsigned int) atoi(optarg);
+        char *token;
+        char *delim = ",";
+        token = strtok(optarg, delim);
+        int i = 0;
+        while(token != NULL && i < 16){
+          response_end_code[i] = (unsigned int) atoi(token);
+          token = strtok(NULL, delim);
+          i++;
+        }
         break;
 
 
