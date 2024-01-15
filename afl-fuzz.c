@@ -716,6 +716,7 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
     m->msize = sp->Mn->msize;
     memcpy(m->mdata, sp->Mn->mdata, sp->Mn->msize);
     *kl_pushp(lms, kl_messages) = m;
+    queue_cur->to_add_top = queue_cur->to_add_top->state_to_add_prev;
   }else{
     for(qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next){
       if(qslit->sequence_id == queue_cur->construct_sequence_id){
@@ -6504,8 +6505,8 @@ AFLNET_REGIONS_SELECTION:;
       M2_prev = kl_begin(kl_messages);
       M2_next = kl_end(kl_messages);
       
-      if(queue_cur->to_add_top == queue_cur->to_add_list){
-        queue_cur->to_add_list =queue_cur->to_add_list = NULL;
+      if(queue_cur->to_add_top == NULL){
+        queue_cur->to_add_list =queue_cur->to_add_top = NULL;
       }else{
         queue_cur->to_add_top = queue_cur->to_add_top->state_to_add_prev;
       }
@@ -9989,8 +9990,13 @@ int main(int argc, char** argv) {
         if(state_list_id_to_fuzz || queue_cur->to_add_list){
           skipped_fuzz = fuzz_one(use_argv);
         }else{
-          queue_cur->was_fuzzed = 1;
-          queue_cur->unfuzzed_state_count = 0;
+          if(!queue_cur->state_list_head){
+            queue_cur->was_fuzzed = 1;
+            queue_cur->unfuzzed_state_count = 0;
+          }else{
+            skipped_fuzz = 1;
+          }
+
         }
 
 
@@ -10006,7 +10012,7 @@ int main(int argc, char** argv) {
         if (stop_soon) break;
 
         //NOTE:在有seed选择和state选择情况下是否需要更新queue_cur？
-        if(queue_cur->unfuzzed_state_count == 0 && skipped_fuzz == 1){
+        if(queue_cur->unfuzzed_state_count == 0 || skipped_fuzz == 1){
           queue_cur = queue_cur->next;
           current_entry++;
         }
