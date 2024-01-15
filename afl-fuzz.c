@@ -9467,6 +9467,9 @@ int main(int argc, char** argv) {
 
   struct timeval tv;
   struct timezone tz;
+  char *token;
+  char *delim = ",";
+  int i_tmp = 0;
 
   SAYF(cCYA "afl-fuzz " cBRI VERSION cRST " by <lcamtuf@google.com>\n");
 
@@ -9782,12 +9785,9 @@ int main(int argc, char** argv) {
         /* SMGfuzz:set the response code of the protocol's end state*/
       case 'r':
         // if (response_end_code) FATAL("Multiple -r options not supported");
-        char *token;
-        char *delim = ",";
         token = strtok(optarg, delim);
-        int i = 0;
-        while(token != NULL && i < 16){
-          response_end_code[i] = (unsigned int) atoi(token);
+        while(token != NULL && i_tmp < 16){
+          response_end_code[i_tmp] = (unsigned int) atoi(token);
           token = strtok(NULL, delim);
           i++;
         }
@@ -9967,7 +9967,7 @@ int main(int argc, char** argv) {
             queue_cur->was_fuzzed = 1;
             queue_cur->favored = 0;
             queue_cur->unfuzzed_state_count = 0;
-            mark_as_redundant(q,0);
+            mark_as_redundant(queue_cur,0);
           }
 
         }
