@@ -9995,6 +9995,10 @@ int main(int argc, char** argv) {
             queue_cur->unfuzzed_state_count = 0;
           }else{
             skipped_fuzz = 1;
+            queue_cur->was_fuzzed = 1;
+            queue_cur->favored = 0;
+            queue_cur->unfuzzed_state_count = 0;
+            mark_as_redundant(q,0);
           }
 
         }
