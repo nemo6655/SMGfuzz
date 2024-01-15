@@ -9811,7 +9811,6 @@ int main(int argc, char** argv) {
         break;
 
         /* SMGfuzz:set the response code of the protocol's end state*/
-        //BUG:结束标志可能不止一个！！
       case 'r':
         if (response_end_code) FATAL("Multiple -r options not supported");
         char *token;
