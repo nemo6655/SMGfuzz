@@ -9789,7 +9789,7 @@ int main(int argc, char** argv) {
         while(token != NULL && i_tmp < 16){
           response_end_code[i_tmp] = (unsigned int) atoi(token);
           token = strtok(NULL, delim);
-          i++;
+          i_tmp++;
         }
         break;
 
