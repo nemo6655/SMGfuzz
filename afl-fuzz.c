@@ -599,6 +599,9 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
       m_prev = m;
       m = kl_val(it);
       message_count++;
+      if(message_count > state_count){
+        break;
+      }
       if(!m_prev){
         if(in_response_end_codes(state_sequence[message_count])){
           add_point_to_zero(m, state_sequence[message_count], q);
