@@ -471,7 +471,7 @@ region_t* (*extract_requests)(unsigned char* buf, unsigned int buf_size, unsigne
 
 int in_response_end_codes(unsigned int response_code){
   for(int i = 0; i < 16; i++){
-    if(response_end_code[i] == response_code){
+    if(response_end_code[i] == response_code && response_code != 0){
       return 1;
     }
   }
