@@ -1,0 +1,30 @@
+start_time        : 1705998387
+last_update       : 1706067460
+fuzzer_pid        : 16928
+cycles_done       : 0
+execs_done        : 205007
+execs_per_sec     : 27.93
+paths_total       : 1022
+paths_favored     : 100
+paths_found       : 1014
+paths_imported    : 0
+max_depth         : 3
+cur_path          : 257
+pending_favs      : 100
+pending_total     : 1021
+variable_paths    : 1017
+stability         : 46.32%
+bitmap_cvg        : 2.66%
+unique_crashes    : 0
+unique_hangs      : 0
+last_path         : 1706066794
+last_crash        : 0
+last_hang         : 0
+execs_since_crash : 205007
+exec_timeout      : 140
+afl_banner        : live555MediaServer
+afl_version       : 2.56b
+target_mode       : default
+command_line      : /usr/local/bin/afl-fuzz -i /mnt/hgfs/下载/SMGfuzz-master/tutorials/live555 -o output -N tcp://127.0.0.1/8554 -m none -P RTSP -D 10000 -q 4 -s 4 -E -K -R -r 400 -- ./live555MediaServer 8554
+slowest_exec_ms   : 0
+peak_rss_mb       : not available while afl is running

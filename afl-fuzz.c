@@ -4414,8 +4414,12 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
 
   u8  *fn = "";
   u8  hnb;
+  u8  *fn_bit = "";
+  u8  *fn_state = "";
   //s32 fd;
   u8  keeping = 0, res;
+
+  int fd_bit,fd_state;
 
   if (fault == crash_mode) {
 
@@ -4431,6 +4435,9 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
 
     fn = alloc_printf("%s/queue/id:%06u,%s", out_dir, queued_paths,
                       describe_op(hnb));
+    
+    fn_bit = alloc_printf("%s/train/bitmap,%06u",out_dir,queued_paths);
+    fn_state = alloc_printf("%s/train/statemap,%06u",out_dir,queued_paths);
 
 #else
 
@@ -4453,6 +4460,19 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
     if (hnb == 2) {
       queue_top->has_new_cov = 1;
       queued_with_cov++;
+
+      //store bitmap to file
+      fd_bit = open(fn_bit, O_WRONLY | O_CREAT | O_EXCL, 0600);
+      if (fd_bit < 0) PFATAL("Unable to create '%s'", fn_bit);
+      ck_write(fd_bit, trace_bits, MAP_SIZE, fn_bit);
+      close(fd_bit);
+      //store statemap to file
+      fd_state= open(fn_state, O_WRONLY | O_CREAT | O_EXCL, 0600);
+      if (fd_state < 0) PFATAL("Unable to create '%s'", fn_state);
+      ck_write(fd_state, state_map, MAP_SIZE, fn_state);
+      close(fd_state);
+
+
     }
 
     queue_top->exec_cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
@@ -8809,6 +8829,12 @@ EXP_ST void setup_dirs_fds(void) {
   tmp = alloc_printf("%s/queue", out_dir);
   if (mkdir(tmp, 0700)) PFATAL("Unable to create '%s'", tmp);
   ck_free(tmp);
+
+  tmp = alloc_printf("%s/train", out_dir);
+  if (mkdir(tmp, 0700)) PFATAL("Unable to create '%s'", tmp);
+  ck_free(tmp);
+
+
 
   /* Top-level directory for queue metadata used for session
      resume and related tasks. */
