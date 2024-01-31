@@ -551,7 +551,7 @@ void add_point_to_statemap(message_t * Mn, unsigned int Rn, message_t * Mn_1, un
   kh_value(khsm_state_map, k) = sp;
 
   if(state_map_count >255){
-    smc = state_map_count/256;
+    int smc = state_map_count/256;
     state_map[smc/16][smc%16] = sp;
   }else{
     state_map[state_map_count/16][state_map_count%16] = sp;
