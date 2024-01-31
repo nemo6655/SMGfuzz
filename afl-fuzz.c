@@ -550,8 +550,13 @@ void add_point_to_statemap(message_t * Mn, unsigned int Rn, message_t * Mn_1, un
   k = kh_put(sm, khsm_state_map, state_map_count, &discard);
   kh_value(khsm_state_map, k) = sp;
 
+  if(state_map_count >255){
+    smc = state_map_count/256;
+    state_map[smc/16][smc%16] = sp;
+  }else{
+    state_map[state_map_count/16][state_map_count%16] = sp;
+  }
   
-  state_map[state_map_count/16][state_map_count%16] = sp;
 }
 
 void add_point_to_zero(message_t * Mn, unsigned int Rn, struct queue_entry* q){
