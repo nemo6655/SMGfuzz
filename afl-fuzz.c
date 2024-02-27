@@ -9953,9 +9953,7 @@ int main(int argc, char** argv) {
             queue_cur = queue_cur->next;
           }
         }
-        //SMGFuzz:AFLNet在每轮fuzz中选择一个种子作为测试目标，这样其实破坏了afl原有的选择队列，导致有些种子容易出现饿死的情况，且无法保证每轮覆盖所有的bitmap上的点
-        //是否延用这种方法？？否。。。
-        //在保证每轮覆盖所有的bitmap上的点的情况下，选择每个queue中的一个state_point作为测试目标进行变异
+
         selected_seed = state_map_choose_seed();
         if(!queue_cur->to_add_list){
           if(queue_cur->unfuzzed_state_count == 0){
