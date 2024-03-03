@@ -2565,12 +2565,14 @@ static void cull_queue(void) {
   q = queue;
 
   while (q) {
-    if (state_selection_algo == STATE_MAP){
-      q->favored = 0; 
-    }else{
-      if (!q->is_initial_seed)
-        q->favored = 0;
-    }
+    // if (state_selection_algo == STATE_MAP){
+    //   q->favored = 0; 
+    // }else{
+    //   if (!q->is_initial_seed)
+    //     q->favored = 0;
+    // }
+    if (!q->is_initial_seed)
+      q->favored = 0;
     q = q->next;
   }
 
