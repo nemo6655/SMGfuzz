@@ -2722,7 +2722,7 @@ static void read_testcases(void) {
   if(state_selection_algo == STATE_MAP){
     khsm_state_map = kh_init(sm);
     khs_point_hash = kh_init(phs32);
-    memset(state_map, 0, STATE_MAP_SIZE *16);
+    memset(state_map, 0, STATE_MAP_SIZE *sizeof(state_point_t *));
     //TODO:add other variables to init
   }
 
@@ -4470,7 +4470,7 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
       //store statemap to file
       fd_state= open(fn_state, O_WRONLY | O_CREAT | O_EXCL, 0600);
       if (fd_state < 0) PFATAL("Unable to create '%s'", fn_state);
-      ck_write(fd_state, state_map, STATE_MAP_SIZE*16, fn_state);
+      ck_write(fd_state, state_map, STATE_MAP_SIZE*sizeof(state_point_t *), fn_state);
       close(fd_state);
 
 
