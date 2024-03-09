@@ -5,12 +5,37 @@ import os
 import numpy as np
 import sys
 import random
+import matplotlib.pyplot as plt
+from datetime import datetime
+from sklearn.decomposition import KernelPCA
 
-#torch.set_printoptions(threshold=sys.maxsize)
+#torch.set_printoptions(threshold=sys.maxsize) #使print显示完全
+# 获取当前时间
+current_time = datetime.now()
+# 将当前时间格式化为字符串
+time_str = current_time.strftime('%Y-%m-%d %H:%M:%S')
+
+# 绘制loss损失函数（保存文件名包含时间）
+def plot_loss(train_loss, test_loss):
+    x = range(1, len(train_loss) + 1)
+    plt.plot(x, train_loss, label='Train Loss')
+    plt.plot(x, test_loss, label='Test Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig('Train_Result/fig/loss'+time_str+'.svg', format='svg')
+
+#添加高斯白噪声的函数   
+def add_noise(matrix, mean, std):
+    noise = np.random.normal(mean, std, size=matrix.shape)
+    noisy_matrix = np.clip(matrix + noise, 0, 1)
+    return noisy_matrix.astype(int)
+
 # 设置文件夹的路径
-folder1_path = "Seed_Vec/"
+folder1_path = "Decode_Data/seed_vec/"
 folder2_path = "Decode_Data/statemap/"
 folder3_path = "Decode_Data/bitmap/"
+
 # 定义网络架构
 class MyNet(nn.Module):
     def __init__(self):
@@ -18,16 +43,12 @@ class MyNet(nn.Module):
         self.cnn = nn.Sequential(
             nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2)
         )
         self.fc1 = nn.Sequential(
             nn.Linear(256, 128),
@@ -36,13 +57,13 @@ class MyNet(nn.Module):
             nn.ReLU()
         )
         self.fc2 = nn.Sequential(
-            nn.Linear(512, 256),
+            nn.Linear(512, 128),
             nn.ReLU(),
-            nn.Linear(256, 128),
+            nn.Linear(128, 128),
             nn.ReLU(),
-            nn.Linear(128, 256),
+            nn.Linear(128, 128),
             nn.ReLU(),
-            nn.Linear(256, 1024),
+            nn.Linear(128, 1024),
             nn.ReLU()
         )
         self.decnn = nn.Sequential(
@@ -58,17 +79,12 @@ class MyNet(nn.Module):
         x1 = self.cnn(x1)
         x1 = x1.view(-1)
         x2 = self.fc1(x2)
-        '''
-        scale_factor = x2.mean() / x1.mean()
-        if scale_factor >10 and scale_factor <100000:
-            x = torch.cat((x1*scale_factor, x2), dim=0)
-        else:
-            x = torch.cat((x1, x2), dim=0)'''
         x = torch.cat((x1, x2), dim=0)
         x = self.fc2(x)
         x = torch.reshape(x,(32,32)).unsqueeze(0)
         x = self.decnn(x)
         return x
+
 
 def split_dataset(data, train_ratio):
     random.shuffle(data)  # 随机打乱列表顺序
@@ -81,8 +97,8 @@ def split_dataset(data, train_ratio):
 net = MyNet()
 
 # 定义损失函数和优化器
-criterion = nn.L1Loss()
-optimizer = optim.Adam(net.parameters(), lr=0.05)
+criterion = nn.BCELoss()
+optimizer = optim.Adam(net.parameters(), lr=0.001)
 
 num_epochs=50
 
@@ -102,44 +118,61 @@ for file2 in folder2_files:
         if file1_name == file2_name:
             # 读取文件夹1中的列向量数据
             file1_data = np.loadtxt(os.path.join(folder1_path, file1))
-            
+            #file1_data /=np.max(file1_data)
             # 读取文件夹2中的矩阵数据
             file2_data = np.loadtxt(os.path.join(folder2_path, file2))
+            file2_data = add_noise(file2_data, mean=0, std=0.01) #加噪声
             file3_data = np.loadtxt(os.path.join(folder3_path, 'bitmap,'+file2_name+'.txt'))
-            
+            #file3_data /=np.max(file3_data)
+            file3_data = np.where(file3_data != 0, 1, file3_data)
             train_loader.append((file1_data,file2_data,file3_data))
 
-train_data, test_data = split_dataset(train_loader, 0.7)
-print(str(len(train_data))+"+"+str(len(test_data)))
+
+train_data, test_data = split_dataset(train_loader, 0.8) #train:test=8:2
+
+print("train:"+str(len(train_data))+",test:"+str(len(test_data)))
+
 # 训练网络
+train_loss = []
+test_loss = []
+
 for epoch in range(num_epochs):
     running_loss = 0.0
     testing_loss = 0.0
     for i, (seed, statemap, bitmap) in enumerate(train_data):
         optimizer.zero_grad()
-        scale_factor = statemap.mean() / seed.mean()
-        if scale_factor >10 and scale_factor <100000:
-            seed = seed * scale_factor
+        # 创建KernelPCA对象
+        kpca_state = KernelPCA(n_components=16, kernel='rbf')
+        # 进行核方法的PCA降维
+        statemap = kpca_state.fit_transform(statemap)
+
         input = (torch.tensor(statemap).unsqueeze(0).to(torch.float32),torch.tensor(seed).to(torch.float32))
         outputs = net(*input)
+        #print(sum(sum(sum(outputs))))
+        #print(np.mean(np.mean(bitmap)))
         bitmap_tensor = torch.tensor(bitmap, dtype=torch.float32).unsqueeze(0)
         loss = criterion(outputs, bitmap_tensor)
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
-    
     for j, (seed_t, statemap_t, bitmap_t) in enumerate(test_data):
-        scale_factor = statemap_t.mean() / seed_t.mean()
-        if scale_factor >10 and scale_factor <100000:
-            seed_t = seed_t * scale_factor
+        # 进行核方法的PCA降维
+        statemap_t = kpca_state.fit_transform(statemap_t)
+
         input_t = (torch.tensor(statemap_t).unsqueeze(0).to(torch.float32),torch.tensor(seed_t).to(torch.float32))
         outputs_t = net(*input_t)
         bitmap_tensor_t = torch.tensor(bitmap, dtype=torch.float32).unsqueeze(0)
         loss_t = criterion(outputs_t, bitmap_tensor_t)
         testing_loss += loss_t.item()
-    
+
+    train_loss.append(running_loss / len(train_data))
+    test_loss.append(testing_loss / len(test_data))
     print('Epoch [{}/{}], TrainLoss: {:.5f}, TestLoss: {:.5f}'.format(epoch+1, num_epochs, running_loss / len(train_data),testing_loss / len(test_data)))
 
+#保存参数
+torch.save(net.state_dict(), 'Train_Result/model/model_'+time_str+'.pth')
+#绘制并保存图像
+plot_loss(train_loss, test_loss)
 
 
 

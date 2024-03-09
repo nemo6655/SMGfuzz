@@ -2,6 +2,11 @@ from gensim.models import Word2Vec
 import os
 import codecs
 import numpy as np
+def clear_folder(folder_path):
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
 
 def read_seed_file(file_path):
     with open(file_path, 'r', encoding='latin-1') as f:
@@ -25,11 +30,19 @@ def train_word2vec_model(seed_folder):
 
 
 seed_folder = 'Decode_Data/seed/'
+
+# 调用函数清空文件夹
+if os.path.exists('Decode_Data/seed_vec/'):
+    clear_folder('Decode_Data/seed_vec/')
+else:
+    os.mkdir('Decode_Data/seed_vec/')
+
 seed_vectors = train_word2vec_model(seed_folder)
 
 seed_vec_names=seed_vectors.keys()
 seed_vec_values=seed_vectors.values()
 for seed_vec_name,seed_vec_value in zip(seed_vec_names,seed_vec_values):
-    np.savetxt('Seed_Vec/'+seed_vec_name,seed_vec_value)
+    np.savetxt('Decode_Data/seed_vec/'+seed_vec_name,seed_vec_value)
+    print('seed:'+ seed_vec_name +'已转换为词向量')
 
 

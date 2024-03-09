@@ -2722,7 +2722,7 @@ static void read_testcases(void) {
   if(state_selection_algo == STATE_MAP){
     khsm_state_map = kh_init(sm);
     khs_point_hash = kh_init(phs32);
-    memset(state_map, 0, STATE_MAP_SIZE *sizeof(state_point_t *));
+    //memset(state_map, 0, STATE_MAP_SIZE *sizeof(state_point_t *));
     //TODO:add other variables to init
   }
 
@@ -4421,6 +4421,7 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
   u8  keeping = 0, res;
 
   int fd_bit,fd_state;
+  int resultArray[STATE_MAP_SIZE_POW2][STATE_MAP_SIZE_POW2];
 
   if (fault == crash_mode) {
 
@@ -4470,7 +4471,16 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
       //store statemap to file
       fd_state= open(fn_state, O_WRONLY | O_CREAT | O_EXCL, 0600);
       if (fd_state < 0) PFATAL("Unable to create '%s'", fn_state);
-      ck_write(fd_state, state_map, STATE_MAP_SIZE*sizeof(state_point_t *), fn_state);
+      for (int i = 0; i < STATE_MAP_SIZE_POW2; i++){
+        for (int j = 0; j < STATE_MAP_SIZE_POW2;j ++){
+          if (state_map[i][j] == NULL){
+            resultArray[i][j] = 0;
+          } else {
+            resultArray[i][j] = state_map[i][j]->Rn_1;
+          }
+        }
+      }
+      ck_write(fd_state, resultArray, STATE_MAP_SIZE_POW2 * STATE_MAP_SIZE_POW2 * sizeof(int), fn_state);
       close(fd_state);
 
 
