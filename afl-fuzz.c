@@ -4428,6 +4428,7 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
   u8  keeping = 0, res;
 
   queue_states_list * sp;
+  state_point_t * state_point;
   int fd_bit,fd_state, state_fuzzed_id;
   int resultArray[STATE_MAP_SIZE_POW2][STATE_MAP_SIZE_POW2];
 
@@ -4448,7 +4449,8 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
       sp = queue_cur->state_list_head;
       for(sp;sp != NULL;sp = sp->next){
         if(sp->id == state_list_id_to_fuzz){
-          state_fuzzed_id = sp->state_point->id;
+          state_point = sp->state_point;
+          state_fuzzed_id = state_point->id;
           break;
         }
       }
