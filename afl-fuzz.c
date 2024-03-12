@@ -4427,7 +4427,8 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
   //s32 fd;
   u8  keeping = 0, res;
 
-  int fd_bit,fd_state;
+  queue_states_list * sp;
+  int fd_bit,fd_state, state_fuzzed_id;
   int resultArray[STATE_MAP_SIZE_POW2][STATE_MAP_SIZE_POW2];
 
   if (fault == crash_mode) {
@@ -4441,8 +4442,19 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
     }
 
 #ifndef SIMPLE_FILES
+    if(state_list_id_to_fuzz == 0){
+      state_fuzzed_id = 0;
+    }else{
+      sp = queue_cur->state_list_head;
+      for(sp;sp != NULL;sp = sp->next){
+        if(sp->id == state_list_id_to_fuzz){
+          state_fuzzed_id = sp->state_point->id;
+          break;
+        }
+      }
+    }
 
-    fn = alloc_printf("%s/queue/id:%06u,%s", out_dir, queued_paths,
+    fn = alloc_printf("%s/queue/id:%06u,%06u,%s", out_dir, queued_paths, state_fuzzed_id,
                       describe_op(hnb));
     
     fn_bit = alloc_printf("%s/train/bitmap,%06u",out_dir,queued_paths);
