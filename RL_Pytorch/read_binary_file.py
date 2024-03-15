@@ -78,6 +78,7 @@ for file_name in train_names:
 
                 count = count + 1
             result = np.array(result).reshape((16,16))
+            result[0,0] = 1
             np.savetxt('Decode_Data/statemap/'+file_name+'.txt', result, fmt='%d')
             print(file_name+'已解析')
 

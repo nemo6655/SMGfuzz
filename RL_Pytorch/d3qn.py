@@ -5,19 +5,23 @@ import datetime
 import numpy as np
 import torch
 import torch.nn as nn
-from train import MyNet, add_noise
 import torch.nn.functional as F
 import torch.optim as optim
 import os
 from sklearn.decomposition import KernelPCA
-
+#np.set_printoptions(threshold=np.inf)
 # Hyperparameters 超参数
 learning_rate = 0.0005
 gamma = 0.98
 buffer_limit = 50000
 batch_size = 32
-MAX_EPISODE = 1000
+MAX_EPISODE = 400
 RENDER = False
+
+#考虑到对一个新的全局bitmap,前几次（普通）变异也会快速覆盖很多边，而后续（哪怕是精彩的）变异也只会新增少量的边，符合指数函数规律，需要加权重来计算奖励。
+#参数由find_eps_reward_law.py得到
+n_epi_a = 1/1.01303312e+03 
+n_epi_b = 1.53492932e-02
 
 #文件夹路径
 seed_path = 'Decode_Data/seed_vec'
@@ -37,6 +41,65 @@ n_actions = 256  #动作空间的大小，不是维度，是card()，表示随�
 #获取列表的长度，bitmap或statemap都可
 choice_num = len(bitmaps)
 
+#储存最大的reward，以及此时的state
+best_predict = 0
+best_epi = 0
+best_state = np.zeros(n_features)
+#维护一个全局的bitmap,记录全部被覆盖的边，只要这个图有增加，就给reward
+total_bits = np.zeros((n_actions,n_actions))
+class MyNet(nn.Module):
+    def __init__(self):
+        super(MyNet, self).__init__()
+        self.cnn = nn.Sequential(
+            nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(1, 1, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+        )
+        self.fc1 = nn.Sequential(
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 256),
+            nn.ReLU()
+        )
+        self.fc2 = nn.Sequential(
+            nn.Linear(512, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, 1024),
+            nn.ReLU()
+        )
+        self.decnn = nn.Sequential(
+            nn.ConvTranspose2d(1, 1, kernel_size=3, stride=2, padding=1,output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(1, 1, kernel_size=3, stride=2, padding=1,output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(1, 1, kernel_size=3, stride=2, padding=1,output_padding=1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x1, x2):
+        x1 = self.cnn(x1)
+        x1 = x1.view(-1)
+        x2 = self.fc1(x2)
+        x = torch.cat((x1, x2), dim=0)
+        x = self.fc2(x)
+        x = torch.reshape(x,(32,32)).unsqueeze(0)
+        x = self.decnn(x)
+        return x
+
+def add_noise(matrix, mean, std):
+    noise = np.random.normal(mean, std, size=matrix.shape)
+    noisy_matrix = np.clip(matrix + noise, 0, 1)
+    return noisy_matrix.astype(int)
+
 def find_statemap_and_avaistate(state0):
     choice_statemap = statemaps[int(state0)]
     choice_seed = [string for string in seeds if len(string) >= 10 and string[4:10] == choice_statemap[9:15]]
@@ -46,13 +109,28 @@ def find_statemap_and_avaistate(state0):
     reshaped_matrix = matrix.reshape(1, 256)
     # 判断位置是否有 1
     ones_indices = np.where(reshaped_matrix == 1)[1]
-    return choice_statemap, choice_seed, ones_indices, sum(sum(matrix))
+    return choice_statemap, choice_seed, ones_indices, len(ones_indices)
+
+def set_top_n_to_1(matrix, n):
+    # 找到前N个最大的数的位置
+    indices = np.argpartition(matrix.flatten(), -n)[-n:]
+    # 创建全零矩阵
+    result = np.zeros_like(matrix)
+    # 将前N个最大数的位置置1
+    result.flat[indices] = 1
+    return result
+
+def add_and_threshold(matrix1, matrix2):
+    # 将两个矩阵相加
+    result = matrix1 + matrix2
+    # 将大于1的元素置1，其余元素保持不变
+    result = np.where(result > 1, 1, result)
+    return result
 
 def get_nearest_file(directory):
     now = datetime.datetime.now()
     nearest_file = None
     nearest_time_diff = None
-
     for filename in os.listdir(directory):
         file_path = os.path.join(directory, filename)
         if os.path.isfile(file_path):
@@ -61,7 +139,6 @@ def get_nearest_file(directory):
             if nearest_time_diff is None or time_diff < nearest_time_diff:
                 nearest_file = file_path
                 nearest_time_diff = time_diff
-
     return nearest_file
 
 # 自行编写的强化学习环境，用映射代替一次fuzz
@@ -86,15 +163,19 @@ class Fuzzenv():
 
         vector[0] = state0
         vector[1] = state_num
-        #在可能触发的位置里，随机选择若干个状态，state_num是全部可能触发状态的数量
-        random_count = np.random.randint(1, state_num-1)  # 生成1到state_num之间的随机个数
-        random_indices = np.random.choice(range(2, state_num+2), random_count, replace=False)  # 随机选择索引位置
-        vector[random_indices] = 1  # 将选中的索引位置设置为1
+        #
+        #random_count = np.random.randint(1, state_num-1)  # 生成1到state_num之间的随机个数
+        #random_indices = np.random.choice(range(2, state_num+2), random_count, replace=False)  # 随机选择索引位置
+        vector[2] = 1  # 将选中的索引位置设置为1
 
         self.current_state = vector
         return self.current_state
 
-    def step(self, action):
+    def step(self, action,n_epi):
+        global best_predict
+        global best_state
+        global total_bits
+        global best_epi
         # 执行动作并返回下一个状态和奖励
         # 动作就是生成若干个可触发的状态
         count =0
@@ -102,7 +183,7 @@ class Fuzzenv():
 
         choice_statemap, choice_seed, ones_indices, state_num = find_statemap_and_avaistate(state1)
 
-        #随机生成不重复的新状态
+        #随机生成新状态，在可能触发的位置里，随机选择若干个状态，state_num是全部可能触发状态的数量
         next_state = self.current_state
         random_count = random.randint(1, action)  # 生成1到state_num之间的随机个数
         random_indices = np.random.choice(range(2, state_num+2), random_count, replace=False)  # 随机选择索引位置
@@ -112,28 +193,41 @@ class Fuzzenv():
         predict = self.pred_bitmap(choice_seed,self.current_state) 
         next_predict = self.pred_bitmap(choice_seed,next_state)
 
+        #total_bits = add_and_threshold(total_bits,predict)
+        #next_total_bits = add_and_threshold(total_bits, next_predict)
+
         #计算奖励
-        reward = self.calculate_reward(predict, next_predict)
+        reward = n_epi_a*np.exp(n_epi_b*n_epi)*self.calculate_reward(next_predict)
 
         #取state_num作为一个参考值，变异次数超过这个值，就认为是种子不行，done=True，重开，下一把
         #如果有所提升，就带着奖励继续
         while count < state_num:
             if reward > 0:
+                if best_predict < reward and n_epi>1:
+                    best_state = next_state
+                    best_predict += reward
+                    best_epi = n_epi
+                    
                 self.current_state = next_state
+                total_bits = add_and_threshold(total_bits, next_predict)
                 return self.current_state, reward, False
+
             else:
                 random_count = random.randint(1, action)  # 生成1到state_num之间的随机个数
                 random_indices = np.random.choice(range(2, state_num+2), random_count, replace=False)  # 随机选择索引位置
                 next_state[random_indices] = 1 - next_state[random_indices] # 将选中的索引位置的值翻转
                 next_predict = self.pred_bitmap(choice_seed,next_state)
-                reward = self.calculate_reward(predict, next_predict)
+                reward = self.calculate_reward(next_predict)
                 count += 1
 
         self.current_state = next_state
         return self.current_state, reward, True
 
-    def calculate_reward(self, predict,next_predict):
-        return np.clip(next_predict-predict,-1,1)
+    def calculate_reward(self,next_predict):
+        global total_bits
+        new_bits = np.where((total_bits==0) & (next_predict==1),1,0)
+
+        return sum(sum(new_bits))
 
     def pred_bitmap(self, choice_seed, state):
         kpca_state = KernelPCA(n_components=16, kernel='rbf')
@@ -143,9 +237,8 @@ class Fuzzenv():
         state_map_data = kpca_state.fit_transform(state_map_data)
         input = (torch.tensor(state_map_data).unsqueeze(0).to(torch.float32),torch.tensor(choice_seed_data).to(torch.float32))
         outputs = net(*input)
-        total_edge = sum(sum(sum(outputs.detach().numpy())))
-        #print(total_edge)
-        return total_edge
+        predict_bitmap = set_top_n_to_1(sum(outputs.detach().numpy()),int(sum(sum(sum(outputs.detach().numpy())))))
+        return predict_bitmap
 
 class ReplayBuffer():
     def __init__(self):
@@ -239,10 +332,11 @@ trainer = Dueling_DQN()
 net = MyNet()
 
 directory = 'Train_Result/model'  # 替换为实际的目录路径
-lastest_model = get_nearest_file(directory)
+#lastest_model = get_nearest_file(directory)
+lastest_model = directory+"/model_2024-03-13 11:19:58.pth"
 net.load_state_dict(torch.load(lastest_model))
 
-print_interval = 20
+print_interval = 1
 score = 0.0
 
 for n_epi in range(MAX_EPISODE):
@@ -252,11 +346,11 @@ for n_epi in range(MAX_EPISODE):
 
     while not done:
         a = trainer.sample_action(torch.from_numpy(s).float(), epsilon)
-        s_, r, done = env.step(a)
+        s_, r, done = env.step(a,n_epi)
         done_mask = 0.0 if done else 1.0
         trainer.memory.put((s, a, r / 100.0, s_, done_mask))
         s = s_
-        score += r
+        score = sum(sum(total_bits))
         if done:
             break
 
@@ -265,6 +359,12 @@ for n_epi in range(MAX_EPISODE):
 
     if n_epi % print_interval == 0 and n_epi != 0:
         trainer.target_net.load_state_dict(trainer.evaluate_net.state_dict())
-        print("n_episode :{}, score : {:.6f}, n_buffer : {}, eps : {:.2f}%".format(
+        print("n_episode :{}, score : {:.2f}, n_buffer : {}, eps : {:.2f}%".format(
             n_epi, score / print_interval, trainer.memory.size(), epsilon * 100))
         score = 0.0
+    
+print("best predict's reward:"+str(best_predict))
+print("best state:"+str(best_state))
+print('total_bits:'+str(total_bits))
+print('best epi:'+str(best_epi))
+print('best seed:'+seeds[int(best_state[0])])

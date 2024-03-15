@@ -124,11 +124,11 @@ for file2 in folder2_files:
             file2_data = add_noise(file2_data, mean=0, std=0.01) #加噪声
             file3_data = np.loadtxt(os.path.join(folder3_path, 'bitmap,'+file2_name+'.txt'))
             #file3_data /=np.max(file3_data)
-            file3_data = np.where(file3_data != 0, 1, file3_data)
+            file3_data = np.where(file3_data != 0, 1, file3_data)#大于1的位置置1
             train_loader.append((file1_data,file2_data,file3_data))
 
 
-train_data, test_data = split_dataset(train_loader, 0.8) #train:test=8:2
+train_data, test_data = split_dataset(train_loader, 0.8) #train:test=9:1
 
 print("train:"+str(len(train_data))+",test:"+str(len(test_data)))
 
@@ -172,7 +172,7 @@ for epoch in range(num_epochs):
 #保存参数
 torch.save(net.state_dict(), 'Train_Result/model/model_'+time_str+'.pth')
 #绘制并保存图像
-plot_loss(train_loss, test_loss)
+#plot_loss(train_loss, test_loss)
 
 
 
