@@ -305,7 +305,7 @@ static inline void* DFL_ck_memdup(void* mem, u32 size) {
   ALLOC_CHECK_SIZE(size);
   ret = malloc(size + ALLOC_OFF_TOTAL);
   ALLOC_CHECK_RESULT(ret, size);
-  
+
   ret += ALLOC_OFF_HEAD;
 
   ALLOC_C1(ret) = ALLOC_MAGIC_C1;
@@ -329,7 +329,7 @@ static inline u8* DFL_ck_memdup_str(u8* mem, u32 size) {
   ALLOC_CHECK_SIZE(size);
   ret = malloc(size + ALLOC_OFF_TOTAL + 1);
   ALLOC_CHECK_RESULT(ret, size);
-  
+
   ret += ALLOC_OFF_HEAD;
 
   ALLOC_C1(ret) = ALLOC_MAGIC_C1;

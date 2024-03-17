@@ -101,7 +101,7 @@
 #define HAVOC_MIN           16
 
 /* Maximum stacking for havoc-stage tweaks. The actual value is calculated
-   like this: 
+   like this:
 
    n = random between 1 and HAVOC_STACK_POW2
    stacking = 2^n
@@ -334,9 +334,6 @@
 
 #define STATE_STR_LEN 12
 
-//define state_map size
-#define STATE_MAP_SIZE_POW2 16
-#define STATE_MAP_SIZE (1 << STATE_MAP_SIZE_POW2)
 /* Maximum allocator request size (keep well under INT_MAX): */
 
 #define MAX_ALLOC           0x40000000

@@ -95,7 +95,7 @@ static void find_obj(u8* argv0) {
   }
 
   FATAL("Unable to find 'afl-llvm-rt.o' or 'afl-llvm-pass.so'. Please set AFL_PATH");
- 
+
 }
 
 

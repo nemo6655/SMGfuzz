@@ -169,7 +169,7 @@
 
 #ifdef MESSAGES_TO_STDOUT
 #  define SAYF(x...)    printf(x)
-#else 
+#else
 #  define SAYF(x...)    fprintf(stderr, x)
 #endif /* ^MESSAGES_TO_STDOUT */
 
