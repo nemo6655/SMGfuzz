@@ -10,12 +10,13 @@ import torch.optim as optim
 import os
 from sklearn.decomposition import KernelPCA
 #np.set_printoptions(threshold=np.inf)
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 # Hyperparameters 超参数
 learning_rate = 0.0005
 gamma = 0.98
 buffer_limit = 50000
 batch_size = 32
-MAX_EPISODE = 400
+MAX_EPISODE = 100
 RENDER = False
 
 #考虑到对一个新的全局bitmap,前几次（普通）变异也会快速覆盖很多边，而后续（哪怕是精彩的）变异也只会新增少量的边，符合指数函数规律，需要加权重来计算奖励。
@@ -45,8 +46,12 @@ choice_num = len(bitmaps)
 best_predict = 0
 best_epi = 0
 best_state = np.zeros(n_features)
+
 #维护一个全局的bitmap,记录全部被覆盖的边，只要这个图有增加，就给reward
 total_bits = np.zeros((n_actions,n_actions))
+
+top_k_list = []#字典列表，储存前K大的reward对应的seed（打印）/state（打印）/reward（排序）
+
 class MyNet(nn.Module):
     def __init__(self):
         super(MyNet, self).__init__()
@@ -95,6 +100,16 @@ class MyNet(nn.Module):
         x = self.decnn(x)
         return x
 
+def save_to_list(epi, reward, best_seed, best_state):
+    global top_k_list
+    new_dict = {
+        "n_epi": epi,
+        "reward": reward,
+        "best_seed": best_seed,
+        "best_state": best_state
+    }
+    top_k_list.append(new_dict)
+    
 def add_noise(matrix, mean, std):
     noise = np.random.normal(mean, std, size=matrix.shape)
     noisy_matrix = np.clip(matrix + noise, 0, 1)
@@ -204,8 +219,11 @@ class Fuzzenv():
         while count < state_num:
             if reward > 0:
                 if best_predict < reward and n_epi>1:
+                    if best_state[0]==next_state[0]:
+                        best_predict += reward
+                    else:
+                        best_predict = reward
                     best_state = next_state
-                    best_predict += reward
                     best_epi = n_epi
                     
                 self.current_state = next_state
@@ -343,6 +361,7 @@ for n_epi in range(MAX_EPISODE):
     epsilon = max(0.01, 0.08 - 0.01 * (n_epi / 200))  # Linear annealing from 8% to 1%
     s = env.reset()
     done = False
+    need_save = False
 
     while not done:
         a = trainer.sample_action(torch.from_numpy(s).float(), epsilon)
@@ -350,9 +369,14 @@ for n_epi in range(MAX_EPISODE):
         done_mask = 0.0 if done else 1.0
         trainer.memory.put((s, a, r / 100.0, s_, done_mask))
         s = s_
+        if n_epi>1 and score < sum(sum(total_bits)):#判断这个step后，total_bits有没有增加，增加则需要记录
+            need_save = True
         score = sum(sum(total_bits))
         if done:
             break
+        
+    if need_save: 
+        save_to_list(n_epi,best_predict,seeds[int(best_state[0])],best_state[2:])
 
     if trainer.memory.size() > 2000:
         trainer.train()
@@ -361,10 +385,18 @@ for n_epi in range(MAX_EPISODE):
         trainer.target_net.load_state_dict(trainer.evaluate_net.state_dict())
         print("n_episode :{}, score : {:.2f}, n_buffer : {}, eps : {:.2f}%".format(
             n_epi, score / print_interval, trainer.memory.size(), epsilon * 100))
-        score = 0.0
+        #score = 0.0
     
 print("best predict's reward:"+str(best_predict))
 print("best state:"+str(best_state))
 print('total_bits:'+str(total_bits))
 print('best epi:'+str(best_epi))
 print('best seed:'+seeds[int(best_state[0])])
+print(len(top_k_list))
+# 按照键值为数字的键进行排序
+sorted_list = sorted(top_k_list, key=lambda x: x["reward"])
+
+# 将每个字典写入txt文件
+for i, d in enumerate(sorted_list):
+    with open(f"Train_Result/RL_Result/"+d["best_seed"], "w") as f:
+        np.savetxt(f, d["best_state"].astype(int), fmt='%d')
