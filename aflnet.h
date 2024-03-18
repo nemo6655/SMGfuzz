@@ -32,24 +32,75 @@ typedef struct {
   u32 seeds_count;            /* total number of seeds, it must be equal the size of the seeds array */
 } state_info_t;
 
+//state point in state_map
+typedef struct {
+  u32      id;       //state id
+  message_t * Mn;     //Message n
+  unsigned int Rn;   //Response n
+  u32 seeds_count;
+  u8 point_type;
+  struct state_point_t *state_zero_next;
+  u32 point_hash;
+  u8 is_fuzzed;
+  struct state_point_t *state_to_add_next;
+  struct state_point_t *state_to_add_prev;
+  unsigned int Rn_1;   //Response n+1
+  void     **seeds;  /* keep all seeds reaching this state */
+
+  // TODO：增加到达此节点的序列
+  // TODO：增加此节点当前覆盖的bitmap
+
+  
+} state_point_t;
+
+
+typedef struct {
+  u32 id;
+  u8 is_fuzzed;
+  u8 message_end;
+  u32 sequence_id;
+  struct state_point_t *state_point;
+  message_t * Mn;     //Message n
+  message_t * Mn_1;   //Message n+1
+
+  struct queue_states_list *prev;
+  struct queue_states_list *next;
+} queue_states_list;
+
+enum{
+  /* 00 */ POINT_ZERO,
+  /* 01 */ POINT_TO_ADD,
+  /* 02 */ POINT_ADDED_TO_MAP,
+};
+
+
 enum {
   /* 00 */ PRO_TCP,
   /* 01 */ PRO_UDP
 };
-
+// add state_map mod
 enum {
   /* 00 */ INVALID_SELECTION,
   /* 01 */ RANDOM_SELECTION,
   /* 02 */ ROUND_ROBIN,
-  /* 03 */ FAVOR
+  /* 03 */ FAVOR,
+  /* 04 */ STATE_MAP
 };
 
 // Initialize klist linked list data structure
 #define message_t_freer(x)
 KLIST_INIT(lms, message_t *, message_t_freer)
 
+//SMGFuzz:Initialize klist linked list data structure
+
+#define state_point_t_freer(x)
+KLIST_INIT(sl, state_point_t *, state_point_t_freer)
+
+KHASH_INIT(sm, khint32_t, state_point_t *, 1, kh_int_hash_func, kh_int_hash_equal)
+
 KHASH_SET_INIT_INT(hs32)
 
+KHASH_SET_INIT_INT(phs32)
 // Initialize a hash table with int key and value is of type state_info_t
 KHASH_INIT(hms, khint32_t, state_info_t *, 1, kh_int_hash_func, kh_int_hash_equal)
 
@@ -69,6 +120,11 @@ unsigned int* extract_response_codes_dtls12(unsigned char* buf, unsigned int buf
 unsigned int* extract_response_codes_sip(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref);
 unsigned int* extract_response_codes_http(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref);
 unsigned int* extract_response_codes_ipp(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref);
+unsigned int* extract_response_code_dhcp(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref);
+unsigned int* extract_response_codes_tftp(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref);
+unsigned int* extract_response_code_SNTP(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref);
+unsigned int* extract_response_code_NTP(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref);
+unsigned int* extract_response_code_SNMP(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref);
 extern unsigned int* (*extract_response_codes)(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref);
 
 region_t* extract_requests_smtp(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref);
@@ -82,6 +138,11 @@ region_t* extract_requests_dtls12(unsigned char* buf, unsigned int buf_size, uns
 region_t* extract_requests_sip(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref);
 region_t* extract_requests_http(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref);
 region_t* extract_requests_ipp(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref);
+region_t* extract_requests_tftp(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref);
+region_t* extract_requests_dhcp(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref);
+region_t* extract_requests_SNTP(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref);
+region_t* extract_requests_NTP(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref);
+region_t* extract_requests_SNMP(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref);
 extern region_t* (*extract_requests)(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref);
 
 // Network communication functions

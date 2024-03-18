@@ -66,8 +66,11 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/file.h>
+#include <sys/capability.h>
 
 #include "aflnet.h"
+#include "khash.h"
+#include "klist.h"
 #include <graphviz/gvc.h>
 #include <math.h>
 
@@ -279,6 +282,17 @@ struct queue_entry {
   u8 is_initial_seed;                 /* Is this an initial seed */
   u32 unique_state_count;             /* Unique number of states traversed by this queue entry */
 
+//SMGFuzz:根据需要，对queue_entry数据结构进行增加
+  u32 state_count;
+  u32 unfuzzed_state_count;
+  u32 state_list_count; //0表示有POINT_TO_ADD类型节点，优先fuzz，其余为当前需要fuzz的Mn在state_list中的位置
+  u32 state_sequence_count; //该queue_entry中的以Response_end_code结尾的message链的数量。
+  u32 construct_sequence_id;
+  queue_states_list *state_list_head;
+  queue_states_list *state_list_tail;
+  state_point_t *state_points[65535];
+  state_point_t *to_add_list;
+  state_point_t *to_add_top;
 };
 
 static struct queue_entry *queue,     /* Fuzzing queue (linked list)      */
@@ -378,7 +392,19 @@ u32 state_cycles = 0;
 u32 messages_sent = 0;
 EXP_ST u8 session_virgin_bits[MAP_SIZE];     /* Regions yet untouched while the SUT is still running */
 EXP_ST u8 *cleanup_script; /* script to clean up the environment of the SUT -- make fuzzing more deterministic */
+EXP_ST u8 *netns_name; /* network namespace name to run server in */
 char **was_fuzzed_map = NULL; /* A 2D array keeping state-specific was_fuzzed information */
+
+
+
+
+
+
+
+
+unsigned int response_end_code[16];
+
+/* SMGfuzz -specific variables & functions */
 u32 fuzzed_map_states = 0;
 u32 fuzzed_map_qentries = 0;
 u32 max_seed_region_count = 0;
@@ -402,9 +428,11 @@ Agraph_t  *ipsm;
 static FILE* ipsm_dot_file;
 
 /* Hash table/map and list */
+
 klist_t(lms) *kl_messages;
 khash_t(hs32) *khs_ipsm_paths;
 khash_t(hms) *khms_states;
+
 
 //M2_prev points to the last message of M1 (i.e., prefix)
 //If M1 is empty, M2_prev == NULL
@@ -412,11 +440,348 @@ khash_t(hms) *khms_states;
 //If M3 is empty, M2_next point to the end of the kl_messages linked list
 kliter_t(lms) *M2_prev, *M2_next;
 
+
+/* SMGFuzz -specific variables & functions */
+
+state_point_t *state_map[STATE_MAP_SIZE_POW2][STATE_MAP_SIZE_POW2];//state_map每个点表示协议状态机种的一个有向边。
+
+
+u32 kl_start_id = 0;
+u32 kl_end_id = 0;
+u32 state_zero_count = 0;
+u32 state_list_id_to_fuzz = 0;//state_list中的节点id，用于变异时选择变异节点
+u32 state_map_count = 0;//statemap中的节点数量
+state_point_t *state_zero_top = NULL;
+state_point_t *state_zero = NULL;
+
+
+khash_t(sm) *khsm_state_map;
+// klist_t(sl) *state_list;
+khash_t(phs32) *khs_point_hash;
+
+
+
+
+
 //Function pointers pointing to Protocol-specific functions
 unsigned int* (*extract_response_codes)(unsigned char* buf, unsigned int buf_size, unsigned int* state_count_ref) = NULL;
 region_t* (*extract_requests)(unsigned char* buf, unsigned int buf_size, unsigned int* region_count_ref) = NULL;
 
+
+
+//SMGFuzz:add method here
+
+//SMGFuzz:初始化state_map,此时全局变量kl_messages存储了q对应的seed的所有message。
+//从response_buf中解析出了state_sequence，对ftp协议来说，就是respones的头三个字节
+//state_sequence为类似[0,0x323230,0x323330]的数组，一个为0，第后面分别对应Rn，Rn+1....
+
+int in_response_end_codes(unsigned int response_code){
+  for(int i = 0; i < 16; i++){
+    if(response_end_code[i] == response_code && response_code != 0){
+      return 1;
+    }
+  }
+  return 0;
+}
+
+struct state_point_t *init_state_point(){
+  state_point_t *m = (state_point_t *) ck_alloc(sizeof(state_point_t));
+  m->Mn          = NULL;
+  m->Rn          = NULL;
+  m->Rn_1        = NULL;
+  m->seeds       = NULL;
+  m->seeds_count = 0;
+  m->is_fuzzed   = 0;
+  return m;
+}
+
+void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1, struct queue_entry *q, struct state_point_t *sp){
+  queue_states_list * qsl = (queue_states_list *) ck_alloc(sizeof(queue_states_list));
+  message_t * m_prev = (message_t *) ck_alloc(sizeof(message_t));
+  m_prev->mdata = (char *) ck_alloc(Mn->msize);
+  m_prev->msize = Mn->msize;
+  memcpy(m_prev->mdata, Mn->mdata, Mn->msize);
+  qsl->Mn = m_prev;
+  message_t * m = (message_t *) ck_alloc(sizeof(message_t));
+  m->mdata = (char *) ck_alloc(Mn_1->msize);
+  m->msize = Mn_1->msize;
+  memcpy(m->mdata, Mn_1->mdata, Mn_1->msize);
+  qsl->Mn_1 = m;
+
+  q->state_list_count++;
+  qsl->id = q->state_list_count;
+  qsl->is_fuzzed = 0;
+  qsl->state_point = sp;
+  qsl->sequence_id = q->state_sequence_count;
+
+  if(in_response_end_codes(Rn_1)){
+    qsl->message_end = 1;
+    q->state_sequence_count++;
+  }else{
+    qsl->message_end = 0;
+  }
+
+  
+  if(!q->state_list_head){
+    q->state_list_head = qsl;
+    q->state_list_tail = qsl;
+  }else{
+    q->state_list_tail->next = qsl;
+    qsl->prev = q->state_list_tail;
+    q->state_list_tail = qsl;
+  }
+
+}
+
+void add_point_to_statemap(message_t * Mn, unsigned int Rn, message_t * Mn_1, unsigned int Rn_1,struct queue_entry* q, u8 add_queue_type,u32 hashKey){
+  int discard;
+  khint_t k;
+  state_map_count++;
+  state_point_t * sp = init_state_point();
+  sp->id = state_map_count;
+  sp->point_hash = hashKey;
+  sp->Rn = Rn;
+  sp->Rn_1 = Rn_1;
+
+  sp->seeds = (void **) ck_realloc (sp->seeds, (sp->seeds_count + 1) * sizeof(void *));
+  sp->seeds[sp->seeds_count] = (void *)q;
+  sp->seeds_count++;
+  sp->point_type = add_queue_type;
+  q->state_count++;
+  q->unfuzzed_state_count++;
+
+  q->state_points[sp->id] = sp;
+  add_point_to_queue_list(Mn, Mn_1, Rn_1, q, sp);
+
+  k = kh_put(sm, khsm_state_map, state_map_count, &discard);
+  kh_value(khsm_state_map, k) = sp;
+
+  if(state_map_count >255){
+    int smc = state_map_count/256;
+    state_map[smc/16][smc%16] = sp;
+  }else{
+    state_map[state_map_count/16][state_map_count%16] = sp;
+  }
+  
+}
+
+void add_point_to_zero(message_t * Mn, unsigned int Rn, struct queue_entry* q){
+  state_point_t * sp = init_state_point();
+  message_t * m = (message_t *) ck_alloc(sizeof(message_t));
+  m->mdata = (char *) ck_alloc(Mn->msize);
+  m->msize = Mn->msize;
+  memcpy(m->mdata, Mn->mdata, Mn->msize);
+  sp->id = 0;
+  sp->Mn = m;
+  sp->Rn = Rn;
+  sp->seeds = (void **) ck_realloc (sp->seeds, (sp->seeds_count + 1) * sizeof(void *));
+  sp->seeds[sp->seeds_count] = (void *)q;
+  sp->seeds_count++;
+  sp->point_type = POINT_ZERO;
+  state_zero_count++;
+
+  if(!state_zero){
+    state_map[0][0] = state_zero = state_zero_top = sp;
+  }else{
+    state_zero_top->state_zero_next = sp;
+    state_zero_top = sp;
+  }
+  if(!q->state_points[0]){
+    q->state_points[0] = state_map[0][0];
+  }
+}
+
+void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_count,struct queue_entry* q, u8 dry_run)
+{
+  int discard; 
+  khint_t k;
+  state_point_t *sp = NULL;
+  u8 add_queue = 0;
+  u32 *point_response_sequence = NULL;
+  kliter_t(lms) *it;
+  int message_count = 0;
+  message_t * m = NULL;
+  message_t * m_prev = NULL;
+  //state_count <= 1时，state_sequence为[0],没有response。
+  if(state_count <= 1){
+    return;
+  }else{
+     for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
+      m_prev = m;
+      m = kl_val(it);
+      message_count++;
+      if(message_count > state_count){
+        break;
+      }
+      if(!m_prev){
+        if(in_response_end_codes(state_sequence[message_count])){
+          add_point_to_zero(m, state_sequence[message_count], q);
+          m = NULL;
+        }else{
+          if(message_count == state_count -1 ){
+            //只有源状态没有目的状态情况下,加入queue_entry的state_to_add_list,变异时优先变异。
+            sp = init_state_point();
+            message_t * mm = (message_t *) ck_alloc(sizeof(message_t));
+            mm->mdata = (char *) ck_alloc(m->msize);
+            mm->msize = m->msize;
+            memcpy(mm->mdata, m->mdata, m->msize);
+            sp->Mn = mm;
+            sp->Rn = state_sequence[message_count];
+            sp->point_type = POINT_TO_ADD;
+            if(!q->to_add_list){
+              q->to_add_list = q->to_add_top = sp;
+            }else{
+              q->to_add_top->state_to_add_next = sp;
+              sp->state_to_add_prev = q->to_add_top;
+              q->to_add_top = sp;
+            }
+            q->state_count++;
+            q->unfuzzed_state_count++;
+          }
+        }
+      }else{
+        point_response_sequence = (u32 *)ck_realloc(point_response_sequence, 2 * sizeof(unsigned int));
+        point_response_sequence[0] = state_sequence[message_count-1];
+        point_response_sequence[1] = state_sequence[message_count];
+        u32 hashKey = hash32(point_response_sequence, 2 * sizeof(unsigned int), 0);
+        if(kh_get(phs32, khs_point_hash, hashKey) != kh_end(khs_point_hash)){
+          //state_map中已经存在该point
+          for(int i =0; i <= state_map_count; i++){
+            k = kh_get(sm, khsm_state_map, i);
+            if(k != kh_end(khsm_state_map)){
+              sp = kh_val(khsm_state_map, k);
+              if(sp->point_hash == hashKey){
+                if(!q->state_points[sp->id]){
+                  sp->seeds = (void **) ck_realloc (sp->seeds, (sp->seeds_count + 1) * sizeof(void *));
+                  sp->seeds[sp->seeds_count] = (void *)q;
+                  sp->seeds_count++;
+                  q->state_count++;
+                  q->unfuzzed_state_count++;
+                  q->state_points[sp->id] = sp;
+                  add_point_to_queue_list(m_prev, m, state_sequence[message_count], q, sp);
+                }
+              }
+            }
+          }
+        }else{
+          //state_map中不存在该point
+          kh_put(phs32, khs_point_hash, hashKey, &discard);
+          add_point_to_statemap(m_prev, state_sequence[message_count-1], m, state_sequence[message_count], q, POINT_ADDED_TO_MAP, hashKey);
+        }
+
+        if(in_response_end_codes(state_sequence[message_count])){         
+          m = NULL;
+        }
+      }
+    }
+  }
+  if(q->state_list_tail){
+    q->state_list_tail->message_end = 1;
+    q->state_sequence_count++;
+  }
+
+  q->unfuzzed_state_count = q->state_count;
+
+}
+//SMGFuzz: 将POINT_TO_ADD的state_point添加到state_map中
+
+
+
+
+
+
+
+
+struct queue_entry *state_map_choose_seed(){
+
+};
+
+u32 state_map_choose_state_point(struct queue_entry * q){
+  queue_states_list * qslit = NULL;
+  u32 pre_qslit_message_end = 0;
+
+
+  for(qslit = q->state_list_head; qslit!= NULL; qslit = qslit->next){
+    if(qslit->sequence_id == q->construct_sequence_id){
+      if(!qslit->is_fuzzed){
+        qslit->is_fuzzed++;
+        if(pre_qslit_message_end){
+          q->construct_sequence_id++;
+        }
+        return qslit->id;
+      }else{
+        pre_qslit_message_end = qslit->message_end;
+      }
+    }
+  }
+  if(q->construct_sequence_id == q->state_sequence_count){
+    q->unfuzzed_state_count = 0;
+    q->construct_sequence_id = 0;
+    q->was_fuzzed = 1;
+    return 0;
+  }
+}
+
+
+//SMGFuzz:通过queue_entry的to_add_list或state_list构建kl_messages
+klist_t(lms) *construct_kl_messages_from_queue_states_list(){
+  klist_t(lms) *kl_messages = kl_init(lms);
+  kliter_t(lms) *it;
+  queue_states_list * qslit = NULL;
+  state_point_t * sp = NULL;
+  u32 csi = queue_cur->construct_sequence_id;
+  boolean start = TRUE;
+
+  if(queue_cur->to_add_list){
+    sp = queue_cur->to_add_top;
+    message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+    m->mdata = (char *) ck_alloc(sp->Mn->msize);
+    m->msize = sp->Mn->msize;
+    memcpy(m->mdata, sp->Mn->mdata, sp->Mn->msize);
+    *kl_pushp(lms, kl_messages) = m;
+    queue_cur->to_add_top = queue_cur->to_add_top->state_to_add_prev;
+  }else{
+    for(qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next){
+      if(qslit->sequence_id == queue_cur->construct_sequence_id){
+        if(start){
+          kl_start_id = qslit->id;
+          start = FALSE;
+        }
+        message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+        m->mdata = (char *) ck_alloc(qslit->Mn->msize);
+        m->msize = qslit->Mn->msize;
+        memcpy(m->mdata, qslit->Mn->mdata, qslit->Mn->msize);
+        *kl_pushp(lms, kl_messages) = m;
+        if(qslit->message_end){
+          kl_end_id = qslit->id;
+          message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+          m->mdata = (char *) ck_alloc(qslit->Mn_1->msize);
+          m->msize = qslit->Mn_1->msize;
+          memcpy(m->mdata, qslit->Mn_1->mdata, qslit->Mn_1->msize);
+          *kl_pushp(lms, kl_messages) = m;
+          break;
+        }
+      }
+    }
+  }
+  return kl_messages;
+}
+
+struct state_point_t * get_state_point(u32 state_id){
+
+}
+
+void state_map_update_fuzz(unsigned int *state_sequence, unsigned int state_count){
+
+}
+
+void save_state_point(){
+
+}
+
+
 /* Initialize the implemented state machine as a graphviz graph */
+
 void setup_ipsm()
 {
   ipsm = agopen("g", Agdirected, 0);
@@ -427,6 +792,7 @@ void setup_ipsm()
   khs_ipsm_paths = kh_init(hs32);
 
   khms_states = kh_init(hms);
+
 }
 
 /* Free memory allocated to state-machine variables */
@@ -439,6 +805,7 @@ void destroy_ipsm()
   state_info_t *state;
   kh_foreach_value(khms_states, state, {ck_free(state->seeds); ck_free(state);});
   kh_destroy(hms, khms_states);
+  kh_destroy(sm, khsm_state_map);
 
   ck_free(state_ids);
 }
@@ -451,6 +818,8 @@ u32 get_state_index(u32 state_id) {
   }
   return index;
 }
+
+
 
 /* Expand the size of the map when a new seed or a new state has been discovered */
 void expand_was_fuzzed_map(u32 new_states, u32 new_qentries) {
@@ -592,6 +961,11 @@ void update_fuzzs() {
       }
     }
   }
+  if(state_selection_algo == STATE_MAP){
+    state_map_update_fuzz(state_sequence, state_count);
+    
+  }
+
   ck_free(state_sequence);
   kh_destroy(hs32, khs_state_ids);
 }
@@ -646,7 +1020,6 @@ u32 update_scores_and_select_next_state(u8 mode) {
   if (state_scores) ck_free(state_scores);
   return result;
 }
-
 /* Select a target state at which we do state-aware fuzzing */
 unsigned int choose_target_state(u8 mode) {
   u32 result = 0;
@@ -761,7 +1134,10 @@ struct queue_entry *choose_seed(u32 target_state_id, u8 mode)
   return result;
 }
 
+
 /* Update state-aware variables */
+/* SMGFuzz:perform_dry_run调用时，这里完成对q所对应的序列中所有的statepoint加入statemap中 */
+//SMGFuzz:save_if_intresting中如果增加了bitmap，则调用该函数，完成对statemap的更新
 void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
 {
   khint_t k;
@@ -772,6 +1148,13 @@ void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
   if (!response_buf_size || !response_bytes) return;
 
   unsigned int *state_sequence = (*extract_response_codes)(response_buf, response_buf_size, &state_count);
+
+  //SMGFuzz:初始化statemap,是否需要将dry_run与save_if_intresting分开处理？
+  if(seed_selection_algo == STATE_MAP){
+    add_queue_to_state_map(state_sequence, state_count, q, dry_run);
+  }
+
+
 
   q->unique_state_count = get_unique_state_count(state_sequence, state_count);
 
@@ -1847,10 +2230,21 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
   q->passed_det   = passed_det;
   q->regions      = NULL;
   q->region_count = 0;
-  q->index        = queued_paths;
+  q->index        = queued_paths;/* Total number of queued testcases */
   q->generating_state_id = target_state_id;
   q->is_initial_seed = 0;
   q->unique_state_count = 0;
+  q->was_fuzzed = 0;
+  //SMGFuzz:初始化state_map相关参数
+  q->state_count = 0;
+  q->unfuzzed_state_count = 0;
+  q->state_list_count = 0;
+  q->state_sequence_count = 0;
+  q->state_list_head = NULL;
+  q->state_list_tail = NULL;
+  q->to_add_list = NULL;
+  q->to_add_top = NULL;
+  q->construct_sequence_id = 0;
 
   if (q->depth > max_depth) max_depth = q->depth;
 
@@ -1874,6 +2268,7 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
   }
 
   /* AFLNet: extract regions keeping client requests if needed */
+
   if (corpus_read_or_sync) {
     FILE *fp;
     unsigned char *buf;
@@ -1889,8 +2284,8 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
     q->regions = (*extract_requests)(buf, len, &q->region_count);
     ck_free(buf);
 
-    //Keep track the maximal number of seed regions
-    //We use this for some optimization to reduce the overhead while following the server's sequence diagram
+    // Keep track the maximal number of seed regions
+    // We use this for some optimization to reduce the overhead while following the server's sequence diagram
     if ((corpus_read_or_sync == 1) && (q->region_count > max_seed_region_count)) max_seed_region_count = q->region_count;
 
   } else {
@@ -2346,7 +2741,7 @@ static void minimize_bits(u8* dst, u8* src) {
    for every byte in the bitmap. We win that slot if there is no previous
    contender, or if the contender has smaller unique state count or
    it has a more favorable speed x size factor. */
-
+//NOTE:update_bitmap_score只在calibrate_case时调用，更新q的分数
 static void update_bitmap_score(struct queue_entry* q) {
 
   u32 i;
@@ -2363,19 +2758,31 @@ static void update_bitmap_score(struct queue_entry* q) {
 
          /* AFLNet check unique state count first */
 
-         if (q->unique_state_count < top_rated[i]->unique_state_count) continue;
+        /* NOTE: 此处更新bitmap上点对应队列信息，时间对于协议模糊测试不重要*/
+        //SMGFuzz:update_bitmap_score只在calibrate_case时调用，更新q的分数,此时构建的top_rated[]在cull_queue中使用,需要根据state_map来确定
+        if (state_selection_algo == STATE_MAP){
 
-         /* Faster-executing or smaller test cases are favored. */
+          //SMGFuzz：增加种子中state_sequence_count的考虑，当queue_cylces增加到一定程度时，选择state_sequence_count小的种子优先。
+          if(q->unfuzzed_state_count < top_rated[i]->unfuzzed_state_count) continue;
 
-         if ((q->unique_state_count < top_rated[i]->unique_state_count) && (fav_factor > top_rated[i]->exec_us * top_rated[i]->len)) continue;
+          // if ((q->state_count < top_rated[i]->state_count) && (fav_factor > top_rated[i]->exec_us * top_rated[i]->len)) continue;
+          
 
-         /* Looks like we're going to win. Decrease ref count for the
-            previous winner, discard its trace_bits[] if necessary. */
+        }else{
+          if (q->unique_state_count < top_rated[i]->unique_state_count) continue;
 
-         if (!--top_rated[i]->tc_ref) {
-           ck_free(top_rated[i]->trace_mini);
-           top_rated[i]->trace_mini = 0;
-         }
+          /* Faster-executing or smaller test cases are favored. */
+
+          if ((q->unique_state_count < top_rated[i]->unique_state_count) && (fav_factor > top_rated[i]->exec_us * top_rated[i]->len)) continue;
+
+
+        }
+        /* Looks like we're going to win. Decrease ref count for the
+        previous winner, discard its trace_bits[] if necessary. */
+        if (!--top_rated[i]->tc_ref) {
+          ck_free(top_rated[i]->trace_mini);
+          top_rated[i]->trace_mini = 0;
+        }
 
        }
 
@@ -2401,7 +2808,9 @@ static void update_bitmap_score(struct queue_entry* q) {
    previously-unseen bytes (temp_v) and marks them as favored, at least
    until the next run. The favored entries are given more air time during
    all fuzzing steps. */
-
+/* NOTE：到这里q与statemap中的节点还保持一一对应的关系
+cull_queue函数在最初调用一次，以后每个测试循环调用一次
+主要用来调整测试队列queue中的节点顺序 */
 static void cull_queue(void) {
 
   struct queue_entry* q;
@@ -2420,6 +2829,12 @@ static void cull_queue(void) {
   q = queue;
 
   while (q) {
+    // if (state_selection_algo == STATE_MAP){
+    //   q->favored = 0; 
+    // }else{
+    //   if (!q->is_initial_seed)
+    //     q->favored = 0;
+    // }
     if (!q->is_initial_seed)
       q->favored = 0;
     q = q->next;
@@ -2427,7 +2842,8 @@ static void cull_queue(void) {
 
   /* Let's see if anything in the bitmap isn't captured in temp_v.
      If yes, and if it has a top_rated[] contender, let's use it. */
-
+  /* SMGFuzz:top_rate[]存储了bitmap中点对应的最优queue_entry,这里对top_rate进行了遍历
+  top_rate[]数组在calibrate_case中调用update_queue_score更新 */
   for (i = 0; i < MAP_SIZE; i++)
     if (top_rated[i] && (temp_v[i >> 3] & (1 << (i & 7)))) {
 
@@ -2444,7 +2860,13 @@ static void cull_queue(void) {
 
       //if (!top_rated[i]->was_fuzzed) pending_favored++;
       /* AFLNet takes into account more information to make this decision */
-      if ((top_rated[i]->generating_state_id == target_state_id || top_rated[i]->is_initial_seed) && (was_fuzzed_map[get_state_index(target_state_id)][top_rated[i]->index] == 0)) pending_favored++;
+      /* SMGFuzz: 根据bitmap选择状态 */
+      if (state_selection_algo == STATE_MAP){
+        if (!top_rated[i]->was_fuzzed) pending_favored++;
+      }else{
+        if ((top_rated[i]->generating_state_id == target_state_id || top_rated[i]->is_initial_seed) && (was_fuzzed_map[get_state_index(target_state_id)][top_rated[i]->index] == 0)) pending_favored++;
+      }
+      
 
     }
 
@@ -2522,7 +2944,7 @@ static void setup_post(void) {
 
 /* Read all testcases from the input directory, then queue them for testing.
    Called at startup. */
-
+//SMGFuzz:从种子中读取出初始state，然后初始化statemap，每个文件对应一个queue，每个statepoint应该对应一个queue。
 static void read_testcases(void) {
 
   struct dirent **nl;
@@ -2567,6 +2989,13 @@ static void read_testcases(void) {
 
   }
 
+  /* SMGFuzz:init statemap variables*/
+  if(state_selection_algo == STATE_MAP){
+    khsm_state_map = kh_init(sm);
+    khs_point_hash = kh_init(phs32);
+    //TODO:add other variables to init
+  }
+
   for (i = 0; i < nl_cnt; i++) {
 
     struct stat st;
@@ -2602,7 +3031,7 @@ static void read_testcases(void) {
 
     if (!access(dfn, F_OK)) passed_det = 1;
     ck_free(dfn);
-
+    //TODO:将当前文件中的nregions读取到内存中，并添加到queue_entry的regions中，目前考虑不需要修改。
     add_to_queue(fn, st.st_size, passed_det);
 
   }
@@ -3091,6 +3520,25 @@ static void destroy_extras(void) {
 
 }
 
+/* Move process to the network namespace "netns_name" */
+
+static void move_process_to_netns() {
+  const char *netns_path_fmt = "/var/run/netns/%s";
+  char netns_path[272]; /* 15 for "/var/.." + 256 for netns name + 1 '\0' */
+  int netns_fd;
+
+  if (strlen(netns_name) > 256)
+    FATAL("Network namespace name \"%s\" is too long", netns_name);
+
+  sprintf(netns_path, netns_path_fmt, netns_name);
+
+  netns_fd = open(netns_path, O_RDONLY);
+  if (netns_fd == -1)
+    PFATAL("Unable to open %s", netns_path);
+
+  if (setns(netns_fd, CLONE_NEWNET) == -1)
+    PFATAL("setns failed");
+}
 
 /* Spin up fork server (instrumented mode only). The idea is explained here:
 
@@ -3166,6 +3614,11 @@ EXP_ST void init_forkserver(char** argv) {
 #else
     setrlimit(RLIMIT_CORE, &r); /* Ignore errors */
 #endif
+
+    /* Move the process to the different namespace. */
+
+    if (netns_name)
+      move_process_to_netns();
 
     /* Isolate the process and configure standard descriptors. If out_file is
        specified, stdin is /dev/null; otherwise, out_fd is cloned instead. */
@@ -3484,6 +3937,11 @@ static u8 run_target(char** argv, u32 timeout) {
 
       setrlimit(RLIMIT_CORE, &r); /* Ignore errors */
 
+      /* Move the process to the different namespace. */
+
+      if (netns_name)
+        move_process_to_netns();
+
       /* Isolate the process and configure standard descriptors. If out_file is
          specified, stdin is /dev/null; otherwise, out_fd is cloned instead. */
 
@@ -3736,7 +4194,6 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
     write_to_testcase(use_mem, q->len);
 
     fault = run_target(argv, use_tmout);
-
     /* stop_soon is set by the handler for Ctrl+C. When it's pressed,
        we want to bail out quickly. */
 
@@ -3885,10 +4342,15 @@ static void perform_dry_run(char** argv) {
     close(fd);
 
     /* AFLNet construct the kl_messages linked list for this queue entry*/
+    /* 构建kl_messages是依据种子中的regions，regions是发送报文序列，这里需要
+    修改为statemap的初始节点，因为下面calibrate_case会调用run_target校准种子 */
     kl_messages = construct_kl_messages(q->fname, q->regions, q->region_count);
 
     res = calibrate_case(argv, q, use_mem, 0, 1);
     ck_free(use_mem);
+    /* SMGFuzz:到这里每个q对应state_init_list中的一个元素，这里遍历整个种子队列，完成对state相关参数的更新
+    这里需要完成对statemap的初始化 获得了response_buf和response_buf_size */
+
 
     /* Update state-aware variables (e.g., state machine, regions and their annotations */
     if (state_aware_mode) update_state_aware_variables(q, 1);
@@ -5710,86 +6172,162 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
   write_to_testcase(out_buf, len);
 
-  /* AFLNet update kl_messages linked list */
+  if(state_selection_algo == STATE_MAP){
 
-  // parse the out_buf into messages
-  u32 region_count;
-  region_t *regions = (*extract_requests)(out_buf, len, &region_count);
-  if (!region_count) PFATAL("AFLNet Region count cannot be Zero");
+    // parse the out_buf into messages
+    u32 region_count = 0;
+    region_t *regions = (*extract_requests)(out_buf, len, &region_count);
+    if (!region_count) PFATAL("AFLNet Region count cannot be Zero");
 
-  // update kl_messages linked list
-  u32 i;
-  kliter_t(lms) *prev_last_message, *cur_last_message;
-  prev_last_message = get_last_message(kl_messages);
+    u32 i;
+    kliter_t(lms) *prev_last_message, *cur_last_message;
+    prev_last_message = get_last_message(kl_messages);
 
-  // limit the #messages based on max_seed_region_count to reduce overhead
-  for (i = 0; i < region_count; i++) {
-    u32 len;
-    //Identify region size
-    if (i == max_seed_region_count) {
-      len = regions[region_count - 1].end_byte - regions[i].start_byte + 1;
+    for (i = 0; i < region_count; i++) {
+      u32 len;
+      //Identify region size
+      if (i == max_seed_region_count) {
+        len = regions[region_count - 1].end_byte - regions[i].start_byte + 1;
+      } else {
+        len = regions[i].end_byte - regions[i].start_byte + 1;
+      }
+
+      //Create a new message
+      message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+      m->mdata = (char *) ck_alloc(len);
+      m->msize = len;
+      if (m->mdata == NULL) PFATAL("Unable to allocate memory region to store new message");
+      memcpy(m->mdata, &out_buf[regions[i].start_byte], len);
+
+      //Insert the message to the linked list
+      *kl_pushp(lms, kl_messages) = m;
+      if (M2_next->next == kl_end(kl_messages)) {
+        M2_next = kl_end(kl_messages);
+      }
+
+      if (i == max_seed_region_count) break;
+
+    }
+    ck_free(regions);
+
+    cur_last_message = get_last_message(kl_messages);
+
+
+    // update the linked list with the new M2 & free the previous M2
+
+    //detach the head of previous M2 from the list
+    kliter_t(lms) *old_M2_start;
+    if (M2_prev == NULL) {
+      old_M2_start = kl_begin(kl_messages);
+      kl_begin(kl_messages) = kl_next(prev_last_message);
+      kl_next(cur_last_message) = M2_next;
+      kl_next(prev_last_message) = kl_end(kl_messages);
     } else {
-      len = regions[i].end_byte - regions[i].start_byte + 1;
+      old_M2_start = kl_next(M2_prev);
+      kl_next(M2_prev) = kl_next(prev_last_message);
+      kl_next(cur_last_message) = M2_next;
+      kl_next(prev_last_message) = kl_end(kl_messages);
     }
 
-    //Create a new message
-    message_t *m = (message_t *) ck_alloc(sizeof(message_t));
-    m->mdata = (char *) ck_alloc(len);
-    m->msize = len;
-    if (m->mdata == NULL) PFATAL("Unable to allocate memory region to store new message");
-    memcpy(m->mdata, &out_buf[regions[i].start_byte], len);
+    // free the previous M2
+    kliter_t(lms) *cur_it, *next_it;
+    cur_it = old_M2_start;
+    next_it = kl_next(cur_it);
+    do {
+      ck_free(kl_val(cur_it)->mdata);
+      ck_free(kl_val(cur_it));
+      kmp_free(lms, kl_messages->mp, cur_it);
+      --kl_messages->size;
 
-    //Insert the message to the linked list
-    *kl_pushp(lms, kl_messages) = m;
+      cur_it = next_it;
+      next_it = kl_next(next_it);
+    } while(cur_it != M2_next);
 
-    //Update M2_next in case it points to the tail (M3 is empty)
-    //because the tail in klist is updated once a new entry is pushed into it
-    //in fact, the old tail storage is used to store the newly added entry and a new tail is created
-    if (M2_next->next == kl_end(kl_messages)) {
-      M2_next = kl_end(kl_messages);
+
+  }else{
+    /* AFLNet update kl_messages linked list */
+
+    // parse the out_buf into messages
+    u32 region_count = 0;
+    region_t *regions = (*extract_requests)(out_buf, len, &region_count);
+    if (!region_count) PFATAL("AFLNet Region count cannot bold_M2_starte Zero");
+
+    // update kl_messages linked list
+    u32 i;
+    kliter_t(lms) *prev_last_message, *cur_last_message;
+    prev_last_message = get_last_message(kl_messages);
+
+    // limit the #messages based on max_seed_region_count to reduce overhead
+    for (i = 0; i < region_count; i++) {
+      u32 len;
+      //Identify region size
+      if (i == max_seed_region_count) {
+        len = regions[region_count - 1].end_byte - regions[i].start_byte + 1;
+      } else {
+        len = regions[i].end_byte - regions[i].start_byte + 1;
+      }
+
+      //Create a new message
+      message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+      m->mdata = (char *) ck_alloc(len);
+      m->msize = len;
+      if (m->mdata == NULL) PFATAL("Unable to allocate memory region to store new message");
+      memcpy(m->mdata, &out_buf[regions[i].start_byte], len);
+
+      //Insert the message to the linked list
+      *kl_pushp(lms, kl_messages) = m;
+
+      //Update M2_next in case it points to the tail (M3 is empty)
+      //because the tail in klist is updated once a new entry is pushed into it
+      //in fact, the old tail storage is used to store the newly added entry and a new tail is created
+      if (M2_next->next == kl_end(kl_messages)) {
+        M2_next = kl_end(kl_messages);
+      }
+
+      if (i == max_seed_region_count) break;
+    }
+    ck_free(regions);
+
+    cur_last_message = get_last_message(kl_messages);
+
+    // update the linked list with the new M2 & free the previous M2
+
+    //detach the head of previous M2 from the list
+    kliter_t(lms) *old_M2_start;
+    if (M2_prev == NULL) {
+      old_M2_start = kl_begin(kl_messages);
+      kl_begin(kl_messages) = kl_next(prev_last_message);
+      kl_next(cur_last_message) = M2_next;
+      kl_next(prev_last_message) = kl_end(kl_messages);
+    } else {
+      old_M2_start = kl_next(M2_prev);
+      kl_next(M2_prev) = kl_next(prev_last_message);
+      kl_next(cur_last_message) = M2_next;
+      kl_next(prev_last_message) = kl_end(kl_messages);
     }
 
-    if (i == max_seed_region_count) break;
-  }
-  ck_free(regions);
+    // free the previous M2
+    kliter_t(lms) *cur_it, *next_it;
+    cur_it = old_M2_start;
+    next_it = kl_next(cur_it);
+    do {
+      ck_free(kl_val(cur_it)->mdata);
+      ck_free(kl_val(cur_it));
+      kmp_free(lms, kl_messages->mp, cur_it);
+      --kl_messages->size;
 
-  cur_last_message = get_last_message(kl_messages);
-
-  // update the linked list with the new M2 & free the previous M2
-
-  //detach the head of previous M2 from the list
-  kliter_t(lms) *old_M2_start;
-  if (M2_prev == NULL) {
-    old_M2_start = kl_begin(kl_messages);
-    kl_begin(kl_messages) = kl_next(prev_last_message);
-    kl_next(cur_last_message) = M2_next;
-    kl_next(prev_last_message) = kl_end(kl_messages);
-  } else {
-    old_M2_start = kl_next(M2_prev);
-    kl_next(M2_prev) = kl_next(prev_last_message);
-    kl_next(cur_last_message) = M2_next;
-    kl_next(prev_last_message) = kl_end(kl_messages);
+      cur_it = next_it;
+      next_it = kl_next(next_it);
+    } while(cur_it != M2_next);
   }
 
-  // free the previous M2
-  kliter_t(lms) *cur_it, *next_it;
-  cur_it = old_M2_start;
-  next_it = kl_next(cur_it);
-  do {
-    ck_free(kl_val(cur_it)->mdata);
-    ck_free(kl_val(cur_it));
-    kmp_free(lms, kl_messages->mp, cur_it);
-    --kl_messages->size;
-
-    cur_it = next_it;
-    next_it = kl_next(next_it);
-  } while(cur_it != M2_next);
 
   /* End of AFLNet code */
 
   fault = run_target(argv, exec_tmout);
 
   //Update fuzz count, no matter whether the generated test is interesting or not
+
   if (state_aware_mode) update_fuzzs();
 
   if (stop_soon) return 1;
@@ -5815,7 +6353,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
   }
 
   /* This handles FAULT_ERROR for us: */
-
+  //TODO:如果存储新的queue_entry，对应更新state_map
   queued_discovered += save_if_interesting(argv, out_buf, len, fault);
 
   if (!(stage_cur % stats_update_freq) || stage_cur + 1 == stage_max)
@@ -5872,7 +6410,7 @@ static u32 choose_block_len(u32 limit) {
 /* Calculate case desirability score to adjust the length of havoc fuzzing.
    A helper function for fuzz_one(). Maybe some of these constants should
    go into config.h. */
-
+//TODO:如何构建新的bitmap分数需要仔细考虑。
 static u32 calculate_score(struct queue_entry* q) {
 
   u32 avg_exec_us = total_cal_us / total_cal_cycles;
@@ -5891,6 +6429,7 @@ static u32 calculate_score(struct queue_entry* q) {
   else if (q->exec_us * 3 < avg_exec_us) perf_score = 200;
   else if (q->exec_us * 2 < avg_exec_us) perf_score = 150;
 
+  //SMGFuzz:这里的分数需要在调试时调整
   /* Adjust score based on bitmap size. The working theory is that better
      coverage translates to better targets. Multiplier from 0.25x to 3x. */
 
@@ -6201,108 +6740,241 @@ AFLNET_REGIONS_SELECTION:;
   /* In this implementation, we only need to indentify M2_start_region_ID which is the first region of M2
   and M2_region_count which is the total number of regions in M2. How the information is identified is
   state aware dependent. However, once the information is clear, the code for fuzzing preparation is the same */
+  if(state_selection_algo == STATE_MAP){
+    //SMGFuzz:AFL原有选择策略
+    if (pending_favored) {
 
-  if (state_aware_mode) {
-    /* In state aware mode, select M2 based on the targeted state ID */
-    u32 total_region = queue_cur->region_count;
-    if (total_region == 0) PFATAL("0 region found for %s", queue_cur->fname);
+      /* If we have any favored, non-fuzzed new arrivals in the queue,
+        possibly skip to them at the expense of already-fuzzed or non-favored
+        cases. */
 
-    if (target_state_id == 0) {
-      //No prefix subsequence (M1 is empty)
-      M2_start_region_ID = 0;
-      M2_region_count = 0;
+      if ((queue_cur->was_fuzzed || !queue_cur->favored) &&
+          UR(100) < SKIP_TO_NEW_PROB) return 1;
 
-      //To compute M2_region_count, we identify the first region which has a different annotation
-      //Now we quickly compare the state count, we could make it more fine grained by comparing the exact response codes
-      for(i = 0; i < queue_cur->region_count ; i++) {
-        if (queue_cur->regions[i].state_count != queue_cur->regions[0].state_count) break;
-        M2_region_count++;
+    } else if (!dumb_mode && !queue_cur->favored && queued_paths > 10) {
+
+      /* Otherwise, still possibly skip non-favored cases, albeit less often.
+        The odds of skipping stuff are higher for already-fuzzed inputs and
+        lower for never-fuzzed entries. */
+
+      if (queue_cycle > 1 && !queue_cur->was_fuzzed) {
+
+        if (UR(100) < SKIP_NFAV_NEW_PROB) return 1;
+
+      } else {
+
+        if (UR(100) < SKIP_NFAV_OLD_PROB) return 1;
+
       }
-    } else {
-      //M1 is unlikely to be empty
-      M2_start_region_ID = 0;
 
-      //Identify M2_start_region_ID first based on the target_state_id
-      for(i = 0; i < queue_cur->region_count; i++) {
-        u32 regionalStateCount = queue_cur->regions[i].state_count;
-        if (regionalStateCount > 0) {
-          //reachableStateID is the last ID in the state_sequence
-          u32 reachableStateID = queue_cur->regions[i].state_sequence[regionalStateCount - 1];
-          M2_start_region_ID++;
-          if (reachableStateID == target_state_id) break;
-        } else {
-          //No annotation for this region
-          return 1;
+    }
+    
+    //构建kl_messages链表,用于后续发送消息。
+    kl_messages = construct_kl_messages_from_queue_states_list();
+
+    //SMGFuzz:生成本次变异所需的inbuf和outbuf,state_list_id_to_fuzz为0时，从to_add_list中取出的message作为kl_message
+    //state_list_id_to_fuzz不为0时，从kl_messages中取出state_list_id_to_fuzz对应的message作为fuzz的message
+    kliter_t(lms) *it;
+    u32 in_buf_size = 0;
+    message_t *m = (message_t *) ck_alloc(sizeof(message_t));
+
+    if(queue_cur->to_add_list){
+      //POINT_TO_ADD类型节点时
+      
+      if(state_zero){
+        //从state_zero中随机选取一个节点，为to_add节点增加Mn_1作为fuzz的message
+
+        m->mdata = (char *) ck_alloc(state_zero->Mn->msize);
+        m->msize = state_zero->Mn->msize;
+        memcpy(m->mdata, state_zero->Mn->mdata, state_zero->Mn->msize);
+        *kl_pushp(lms, kl_messages) = m;
+      }else{
+        //在state_zero为空时，从state_list中选取一个节点，为to_add节点增加Mn_1作为fuzz的message
+        if(queue_cur->state_list_head){
+          u32 rand_sp = UR(queue_cur->state_count);
+          queue_states_list * sp;
+          for(sp = queue_cur->state_list_head; sp!=queue_cur->state_list_tail; sp = sp->next){
+            if(!rand_sp) break;
+            rand_sp--;
+          }
+          m->mdata = (char *) ck_alloc(sp->Mn->msize);
+          m->msize = sp->Mn->msize;
+          memcpy(m->mdata, sp->Mn->mdata, sp->Mn->msize);
+          *kl_pushp(lms, kl_messages) = m;
+        }else{
+          it = kl_begin(kl_messages);
+          m->mdata = (char *) ck_alloc(kl_val(it)->msize);
+          m->msize = kl_val(it)->msize;
+          memcpy(m->mdata, kl_val(it)->mdata, kl_val(it)->msize);
+          *kl_pushp(lms, kl_messages) = m;
+        }
+
+      }
+      M2_prev = kl_begin(kl_messages);
+      it = kl_next(M2_prev);
+      M2_next = kl_next(it);
+      
+      if(queue_cur->to_add_top == NULL){
+        queue_cur->to_add_list =queue_cur->to_add_top = NULL;
+      }else{
+        queue_cur->to_add_top = queue_cur->to_add_top->state_to_add_prev;
+      }
+      in_buf = (u8 *) ck_realloc (in_buf, m->msize);
+      memcpy(&in_buf[in_buf_size], m->mdata, m->msize);
+      in_buf_size = m->msize;
+      orig_in = in_buf;
+
+      out_buf = ck_alloc_nozero(in_buf_size);
+      memcpy(out_buf, in_buf, in_buf_size);
+
+      //Update len to keep the correct size of the buffer being mutated
+      len = in_buf_size;
+
+      //Save the len for later use
+      M2_len = len;
+      
+    }else{
+      //POINT_ADDED_TO_MAP类型节点时
+      u32 slidtf = state_list_id_to_fuzz;
+      queue_states_list * sp;
+      it = kl_begin(kl_messages);
+      M2_prev = NULL;
+      M2_next = kl_end(kl_messages);
+      for(u32 i = kl_start_id; i< kl_end_id; i++){
+        if(i != slidtf){
+          M2_prev = it;
+          it = kl_next(it);
+          continue;
+        }else{
+          break;
         }
       }
+      M2_next = kl_next(it);
+      in_buf = (u8 *) ck_realloc (in_buf, kl_val(it)->msize);
+      memcpy(&in_buf[in_buf_size], kl_val(it)->mdata, kl_val(it)->msize);
+      in_buf_size = kl_val(it)->msize;
 
-      //Then identify M2_region_count
-      for(i = M2_start_region_ID; i < queue_cur->region_count ; i++) {
-        if (queue_cur->regions[i].state_count != queue_cur->regions[M2_start_region_ID].state_count) break;
-        M2_region_count++;
+      orig_in = in_buf;
+
+      out_buf = ck_alloc_nozero(in_buf_size);
+      memcpy(out_buf, in_buf, in_buf_size);
+
+      //Update len to keep the correct size of the buffer being mutated
+      len = in_buf_size;
+
+      //Save the len for later use
+      M2_len = len;
+
+
+    }
+
+  }else{
+      if (state_aware_mode) {
+      /* In state aware mode, select M2 based on the targeted state ID */
+
+
+      u32 total_region = queue_cur->region_count;
+      if (total_region == 0) PFATAL("0 region found for %s", queue_cur->fname);
+
+      if (target_state_id == 0) {
+        //No prefix subsequence (M1 is empty)
+        M2_start_region_ID = 0;
+        M2_region_count = 0;
+
+        //To compute M2_region_count, we identify the first region which has a different annotation
+        //Now we quickly compare the state count, we could make it more fine grained by comparing the exact response codes
+        for(i = 0; i < queue_cur->region_count ; i++) {
+          if (queue_cur->regions[i].state_count != queue_cur->regions[0].state_count) break;
+          M2_region_count++;
+        }
+      } else {
+        //M1 is unlikely to be empty
+        M2_start_region_ID = 0;
+
+        //Identify M2_start_region_ID first based on the target_state_id
+        for(i = 0; i < queue_cur->region_count; i++) {
+          u32 regionalStateCount = queue_cur->regions[i].state_count;
+          if (regionalStateCount > 0) {
+            //reachableStateID is the last ID in the state_sequence
+            u32 reachableStateID = queue_cur->regions[i].state_sequence[regionalStateCount - 1];
+            M2_start_region_ID++;
+            if (reachableStateID == target_state_id) break;
+          } else {
+            //No annotation for this region
+            return 1;
+          }
+        }
+
+        //Then identify M2_region_count
+        for(i = M2_start_region_ID; i < queue_cur->region_count ; i++) {
+          if (queue_cur->regions[i].state_count != queue_cur->regions[M2_start_region_ID].state_count) break;
+          M2_region_count++;
+        }
+
+        //Handle corner case(s) and skip the current queue entry
+        if (M2_start_region_ID >= queue_cur->region_count) return 1;
+      }
+    } else {
+      /* Select M2 randomly */
+      u32 total_region = queue_cur->region_count;
+      if (total_region == 0) PFATAL("0 region found for %s", queue_cur->fname);
+
+      M2_start_region_ID = UR(total_region);
+      M2_region_count = UR(total_region - M2_start_region_ID);
+      if (M2_region_count == 0) M2_region_count++; //Mutate one region at least
+    }
+
+    /* Construct the kl_messages linked list and identify boundary pointers (M2_prev and M2_next) */
+    kl_messages = construct_kl_messages(queue_cur->fname, queue_cur->regions, queue_cur->region_count);
+
+    kliter_t(lms) *it;
+
+    M2_prev = NULL;
+    M2_next = kl_end(kl_messages);
+
+    u32 count = 0;
+    for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
+      if (count == M2_start_region_ID - 1) {
+        M2_prev = it;
       }
 
-      //Handle corner case(s) and skip the current queue entry
-      if (M2_start_region_ID >= queue_cur->region_count) return 1;
-    }
-  } else {
-    /* Select M2 randomly */
-    u32 total_region = queue_cur->region_count;
-    if (total_region == 0) PFATAL("0 region found for %s", queue_cur->fname);
-
-    M2_start_region_ID = UR(total_region);
-    M2_region_count = UR(total_region - M2_start_region_ID);
-    if (M2_region_count == 0) M2_region_count++; //Mutate one region at least
-  }
-
-  /* Construct the kl_messages linked list and identify boundary pointers (M2_prev and M2_next) */
-  kl_messages = construct_kl_messages(queue_cur->fname, queue_cur->regions, queue_cur->region_count);
-
-  kliter_t(lms) *it;
-
-  M2_prev = NULL;
-  M2_next = kl_end(kl_messages);
-
-  u32 count = 0;
-  for (it = kl_begin(kl_messages); it != kl_end(kl_messages); it = kl_next(it)) {
-    if (count == M2_start_region_ID - 1) {
-      M2_prev = it;
+      if (count == M2_start_region_ID + M2_region_count) {
+        M2_next = it;
+      }
+      count++;
     }
 
-    if (count == M2_start_region_ID + M2_region_count) {
-      M2_next = it;
+    /* Construct the buffer to be mutated and update out_buf */
+    if (M2_prev == NULL) {
+      it = kl_begin(kl_messages);
+    } else {
+      it = kl_next(M2_prev);
     }
-    count++;
+
+    u32 in_buf_size = 0;
+    while (it != M2_next) {
+      in_buf = (u8 *) ck_realloc (in_buf, in_buf_size + kl_val(it)->msize);
+      if (!in_buf) PFATAL("AFLNet cannot allocate memory for in_buf");
+      //Retrieve data from kl_messages to populate the in_buf
+      memcpy(&in_buf[in_buf_size], kl_val(it)->mdata, kl_val(it)->msize);
+
+      in_buf_size += kl_val(it)->msize;
+      it = kl_next(it);
+    }
+
+    orig_in = in_buf;
+
+    out_buf = ck_alloc_nozero(in_buf_size);
+    memcpy(out_buf, in_buf, in_buf_size);
+
+    //Update len to keep the correct size of the buffer being mutated
+    len = in_buf_size;
+
+    //Save the len for later use
+    M2_len = len;
   }
 
-  /* Construct the buffer to be mutated and update out_buf */
-  if (M2_prev == NULL) {
-    it = kl_begin(kl_messages);
-  } else {
-    it = kl_next(M2_prev);
-  }
 
-  u32 in_buf_size = 0;
-  while (it != M2_next) {
-    in_buf = (u8 *) ck_realloc (in_buf, in_buf_size + kl_val(it)->msize);
-    if (!in_buf) PFATAL("AFLNet cannot allocate memory for in_buf");
-    //Retrieve data from kl_messages to populate the in_buf
-    memcpy(&in_buf[in_buf_size], kl_val(it)->mdata, kl_val(it)->msize);
-
-    in_buf_size += kl_val(it)->msize;
-    it = kl_next(it);
-  }
-
-  orig_in = in_buf;
-
-  out_buf = ck_alloc_nozero(in_buf_size);
-  memcpy(out_buf, in_buf, in_buf_size);
-
-  //Update len to keep the correct size of the buffer being mutated
-  len = in_buf_size;
-
-  //Save the len for later use
-  M2_len = len;
 
   /*********************
    * PERFORMANCE SCORE *
@@ -7329,7 +8001,7 @@ havoc_stage:
     stage_cur_val = use_stacking;
 
     for (i = 0; i < use_stacking; i++) {
-
+//TODO：这里是否需要针对性增加变异方法？
       switch (UR(15 + 2 + (region_level_mutation ? 4 : 0))) {
 
         case 0:
@@ -7915,15 +8587,26 @@ retry_splicing:
 abandon_entry:
 
   splicing_with = -1;
-
+//SMGFuzz：完成一次fuzz后，需要更改state_map相关变量？
   /* Update pending_not_fuzzed count if we made it through the calibration
      cycle and have not seen this entry before. */
 
-  if (!stop_soon && !queue_cur->cal_failed && !queue_cur->was_fuzzed) {
-    queue_cur->was_fuzzed = 1;
-    was_fuzzed_map[get_state_index(target_state_id)][queue_cur->index] = 1;
-    pending_not_fuzzed--;
-    if (queue_cur->favored) pending_favored--;
+  if(state_selection_algo == STATE_MAP){
+    if (!stop_soon && !queue_cur->cal_failed && !queue_cur->was_fuzzed) {
+      queue_cur->unfuzzed_state_count--;
+      if(queue_cur->unfuzzed_state_count == 0) {
+        queue_cur->was_fuzzed = 1;
+        was_fuzzed_map[get_state_index(target_state_id)][queue_cur->index] = 1;
+        pending_not_fuzzed--;
+        if (queue_cur->favored) pending_favored--;
+      }
+    }
+  }else{
+    if (!stop_soon && !queue_cur->cal_failed && !queue_cur->was_fuzzed) {
+      queue_cur->was_fuzzed = 1;
+      pending_not_fuzzed--;
+      if (queue_cur->favored) pending_favored--;
+    }
   }
 
   //munmap(orig_in, queue_cur->len);
@@ -8408,13 +9091,15 @@ static void usage(u8* argv0) {
        "  -D usec       - waiting time (in micro seconds) for the server to initialize\n"
        "  -W msec       - waiting time (in miliseconds) for receiving the first response to each input sent\n"
        "  -w usec       - waiting time (in micro seconds) for receiving follow-up responses\n"
+       "  -e netnsname  - run server in a different network namespace\n"
        "  -K            - send SIGTERM to gracefully terminate the server (see README.md)\n"
        "  -E            - enable state aware mode (see README.md)\n"
        "  -R            - enable region-level mutation operators (see README.md)\n"
        "  -F            - enable false negative reduction mode (see README.md)\n"
        "  -c cleanup    - name or full path to the server cleanup script (see README.md)\n"
        "  -q algo       - state selection algorithm (See aflnet.h for all available options)\n"
-       "  -s algo       - seed selection algorithm (See aflnet.h for all available options)\n\n"
+       "  -s algo       - seed selection algorithm (See aflnet.h for all available options)\n"
+       "  -r endcode    - endcode for the server (see README.md)5556666\n\n" 
 
        "Other stuff:\n\n"
 
@@ -9083,6 +9768,50 @@ static void save_cmdline(u32 argc, char** argv) {
 
 }
 
+/* Check that afl-fuzz (file/process) has some effective and permitted capability */
+
+static int check_ep_capability(cap_value_t cap, const char *filename) {
+  cap_t file_cap, proc_cap;
+  cap_flag_value_t cap_flag_value;
+  int no_capability = 1;
+  int pid = getpid();
+
+  file_cap = cap_get_file(filename);
+  proc_cap = cap_get_proc();
+
+  if (!file_cap && !proc_cap)
+    return no_capability;
+
+  if (file_cap) {
+    if (cap_get_flag(file_cap, cap, CAP_EFFECTIVE, &cap_flag_value))
+      PFATAL("Could not get CAP_EFFECTIVE flag value from file \"%s\"", filename);
+
+    if (cap_flag_value != CAP_SET)
+      return no_capability;
+
+    if (cap_get_flag(file_cap, cap, CAP_PERMITTED, &cap_flag_value))
+      PFATAL("Could not get CAP_PERMITTED flag value from file \"%s\"", filename);
+
+    if (cap_flag_value != CAP_SET)
+      return no_capability;
+  }
+
+  if (proc_cap) {
+    if (cap_get_flag(proc_cap, cap, CAP_EFFECTIVE, &cap_flag_value))
+      PFATAL("Could not get CAP_EFFECTIVE flag value from process id %d", pid);
+
+    if (cap_flag_value != CAP_SET)
+      return no_capability;
+
+    if (cap_get_flag(proc_cap, cap, CAP_PERMITTED, &cap_flag_value))
+      PFATAL("Could not get CAP_PERMITTED flag value from process id %d", pid);
+
+    if (cap_flag_value != CAP_SET)
+      return no_capability;
+  }
+
+  return 0;
+}
 
 #ifndef AFL_LIB
 
@@ -9100,6 +9829,9 @@ int main(int argc, char** argv) {
 
   struct timeval tv;
   struct timezone tz;
+  char *token;
+  char *delim = ",";
+  int i_tmp = 0;
 
   SAYF(cCYA "afl-fuzz " cBRI VERSION cRST " by <lcamtuf@google.com>\n");
 
@@ -9108,7 +9840,7 @@ int main(int argc, char** argv) {
   gettimeofday(&tv, &tz);
   srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
 
-  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:QN:A:D:W:w:P:KEq:s:RFc:l:")) > 0)
+  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:QN:D:W:w:P:KEq:s:RFc:l:")) > 0)
 
     switch (opt) {
 
@@ -9311,6 +10043,12 @@ int main(int argc, char** argv) {
         socket_timeout = 1;
         break;
 
+      case 'e': /* network namespace name */
+        if (netns_name) FATAL("Multiple -e options not supported");
+
+        netns_name = optarg;
+        break;
+
       case 'P': /* protocol to be tested */
         if (protocol_selected) FATAL("Multiple -P options not supported");
 
@@ -9347,6 +10085,21 @@ int main(int argc, char** argv) {
         } else if (!strcmp(optarg, "IPP")) {
           extract_requests = &extract_requests_ipp;
           extract_response_codes = &extract_response_codes_ipp;
+        } else if (!strcmp(optarg, "TFTP")) {
+          extract_requests = &extract_requests_tftp;
+          extract_response_codes = &extract_response_codes_tftp;
+        }else if (!strcmp(optarg, "DHCP")) {
+          extract_requests = &extract_requests_dhcp;
+          extract_response_codes = &extract_response_code_dhcp;
+        }else if (!strcmp(optarg, "SNTP")) {
+          extract_requests = &extract_requests_SNTP;
+          extract_response_codes = &extract_response_code_SNTP;
+        }else if (!strcmp(optarg, "NTP")) {
+          extract_requests = &extract_requests_NTP;
+          extract_response_codes = &extract_response_code_NTP;
+        }else if (!strcmp(optarg, "SNMP")) {
+          extract_requests = &extract_requests_SNMP;
+          extract_response_codes = &extract_response_code_SNMP;
         } else {
           FATAL("%s protocol is not supported yet!", optarg);
         }
@@ -9398,6 +10151,18 @@ int main(int argc, char** argv) {
 	      if (local_port < 1024 || local_port > 65535) FATAL("Invalid source port number");
         break;
 
+        /* SMGfuzz:set the response code of the protocol's end state*/
+      case 'r':
+        // if (response_end_code) FATAL("Multiple -r options not supported");
+        token = strtok(optarg, delim);
+        while(token != NULL && i_tmp < 16){
+          response_end_code[i_tmp] = (unsigned int) atoi(token);
+          token = strtok(NULL, delim);
+          i_tmp++;
+        }
+        break;
+
+
       default:
 
         usage(argv[0]);
@@ -9410,6 +10175,13 @@ int main(int argc, char** argv) {
   if (!use_net && !sbr_mode) FATAL("Please specify network information of the server under test (e.g., tcp://127.0.0.1/8554)");
 
   if (!protocol_selected) FATAL("Please specify the protocol to be tested using the -P option");
+
+  if (netns_name) {
+    if (check_ep_capability(CAP_SYS_ADMIN, argv[0]) != 0)
+      FATAL("Could not run the server under test in a \"%s\" network namespace "
+            "without CAP_SYS_ADMIN capability.\n You can set it by invoking "
+            "afl-fuzz with sudo or by \"$ setcap cap_sys_admin+ep /path/to/afl-fuzz\".", netns_name);
+  }
 
   setup_signal_handlers();
   check_asan_opts();
@@ -9496,7 +10268,7 @@ int main(int argc, char** argv) {
     use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
   else
     use_argv = argv + optind;
-
+  /* NOTE:perfrom_dry_run整个执行过车中只调用这一次，所以这里需要初始化statemap及其所有相关参数 */
   perform_dry_run(use_argv);
 
 #ifdef PRINT_BENCH
@@ -9524,63 +10296,137 @@ int main(int argc, char** argv) {
   }
 
   if (state_aware_mode) {
-
-    if (state_ids_count == 0) {
-      PFATAL("No server states have been detected. Server responses are likely empty!");
-    }
-
-    while (1) {
-      u8 skipped_fuzz;
-
-      struct queue_entry *selected_seed = NULL;
-      while(!selected_seed || selected_seed->region_count == 0) {
-        target_state_id = choose_target_state(state_selection_algo);
-
-        /* Update favorites based on the selected state */
-        cull_queue();
-
-        /* Update number of times a state has been selected for targeted fuzzing */
-        khint_t k = kh_get(hms, khms_states, target_state_id);
-        if (k != kh_end(khms_states)) {
-          kh_val(khms_states, k)->selected_times++;
-        }
-
-        selected_seed = choose_seed(target_state_id, seed_selection_algo);
+    
+    //SMGFuzz:statemap模式循环
+    if(seed_selection_algo == STATE_MAP){
+      //TODO:在一轮测试中，需要完成一次bitmap的覆盖，从bitmap对应的statemap中寻找能够覆盖当前bitmap的所有状态集，组成测试队列
+      if(state_map_count == 0){
+        PFATAL("No state map has been detected. Server responses are likely empty!");
       }
+      while(1){
+        u8 skipped_fuzz;
+        struct queue_entry *selected_seed = NULL;
+        cull_queue();
+        
 
-      /* Seek to the selected seed */
-      if (selected_seed) {
+
         if (!queue_cur) {
-            current_entry     = 0;
-            cur_skipped_paths = 0;
-            queue_cur         = queue;
-            queue_cycle++;
-        }
-        while (queue_cur != selected_seed) {
-          queue_cur = queue_cur->next;
-          current_entry++;
-          if (!queue_cur) {
-            current_entry     = 0;
-            cur_skipped_paths = 0;
-            queue_cur         = queue;
-            queue_cycle++;
+
+          queue_cycle++;
+          current_entry     = 0;
+          cur_skipped_paths = 0;
+          queue_cur         = queue;
+
+          while (seek_to) {
+            current_entry++;
+            seek_to--;
+            queue_cur = queue_cur->next;
           }
         }
+
+        selected_seed = state_map_choose_seed();
+        if(!queue_cur->to_add_list){
+          if(queue_cur->unfuzzed_state_count == 0){
+            for(queue_states_list * qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next)
+              qslit->is_fuzzed = 0;
+          }
+          state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
+        }
+        if(state_list_id_to_fuzz || queue_cur->to_add_list){
+          skipped_fuzz = fuzz_one(use_argv);
+        }else{
+          if(!queue_cur->state_list_head){
+            queue_cur->was_fuzzed = 1;
+            queue_cur->unfuzzed_state_count = 0;
+          }else{
+            skipped_fuzz = 1;
+            queue_cur->was_fuzzed = 1;
+            queue_cur->favored = 0;
+            queue_cur->unfuzzed_state_count = 0;
+            mark_as_redundant(queue_cur,0);
+          }
+
+        }
+
+
+        if (!stop_soon && sync_id && !skipped_fuzz) {
+
+          if (!(sync_interval_cnt++ % SYNC_INTERVAL))
+            sync_fuzzers(use_argv);
+
+        }
+
+        if (!stop_soon && exit_1) stop_soon = 2;
+
+        if (stop_soon) break;
+
+        //NOTE:在有seed选择和state选择情况下是否需要更新queue_cur？
+        if(queue_cur->unfuzzed_state_count == 0 || skipped_fuzz == 1){
+          queue_cur = queue_cur->next;
+          current_entry++;
+        }
+      }
+    
+    }else{
+
+      if (state_ids_count == 0) {
+        PFATAL("No server states have been detected. Server responses are likely empty!");
       }
 
-      skipped_fuzz = fuzz_one(use_argv);
+      while (1) {
+        u8 skipped_fuzz;
 
-      if (!stop_soon && sync_id && !skipped_fuzz) {
+        struct queue_entry *selected_seed = NULL;
+        while(!selected_seed || selected_seed->region_count == 0) {
+          target_state_id = choose_target_state(state_selection_algo);
 
-        if (!(sync_interval_cnt++ % SYNC_INTERVAL))
-          sync_fuzzers(use_argv);
+          /* Update favorites based on the selected state */
+          cull_queue();
 
+          /* Update number of times a state has been selected for targeted fuzzing */
+          khint_t k = kh_get(hms, khms_states, target_state_id);
+          if (k != kh_end(khms_states)) {
+            kh_val(khms_states, k)->selected_times++;
+          }
+
+          selected_seed = choose_seed(target_state_id, seed_selection_algo);
+        }
+
+        /* Seek to the selected seed */
+        if (selected_seed) {
+          if (!queue_cur) {
+              current_entry     = 0;
+              cur_skipped_paths = 0;
+              queue_cur         = queue;
+              queue_cycle++;
+          }
+          while (queue_cur != selected_seed) {
+            queue_cur = queue_cur->next;
+            current_entry++;
+            if (!queue_cur) {
+              current_entry     = 0;
+              cur_skipped_paths = 0;
+              queue_cur         = queue;
+              queue_cycle++;
+            }
+          }
+        }
+
+        skipped_fuzz = fuzz_one(use_argv);
+
+        if (!stop_soon && sync_id && !skipped_fuzz) {
+
+          if (!(sync_interval_cnt++ % SYNC_INTERVAL))
+            sync_fuzzers(use_argv);
+
+        }
+
+        if (!stop_soon && exit_1) stop_soon = 2;
+
+        if (stop_soon) break;
       }
-
-      if (!stop_soon && exit_1) stop_soon = 2;
-
-      if (stop_soon) break;
     }
+
 
   } else {
     while (1) {
