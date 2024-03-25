@@ -8,7 +8,8 @@ import random
 import matplotlib.pyplot as plt
 from datetime import datetime
 from sklearn.decomposition import KernelPCA
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #torch.set_printoptions(threshold=sys.maxsize) #使print显示完全
 # 获取当前时间
 current_time = datetime.now()
@@ -95,9 +96,9 @@ def split_dataset(data, train_ratio):
 
 # 创建网络实例
 net = MyNet()
-
+net.to(device)
 # 定义损失函数和优化器
-criterion = nn.BCELoss()
+criterion = nn.BCELoss().to(device)
 optimizer = optim.Adam(net.parameters(), lr=0.001)
 
 num_epochs=50
@@ -146,11 +147,11 @@ for epoch in range(num_epochs):
         # 进行核方法的PCA降维
         statemap = kpca_state.fit_transform(statemap)
 
-        input = (torch.tensor(statemap).unsqueeze(0).to(torch.float32),torch.tensor(seed).to(torch.float32))
+        input = (torch.tensor(statemap).unsqueeze(0).to(torch.float32).to(device),torch.tensor(seed).to(torch.float32).to(device))
         outputs = net(*input)
         #print(sum(sum(sum(outputs))))
         #print(np.mean(np.mean(bitmap)))
-        bitmap_tensor = torch.tensor(bitmap, dtype=torch.float32).unsqueeze(0)
+        bitmap_tensor = torch.tensor(bitmap, dtype=torch.float32).unsqueeze(0).to(device)
         loss = criterion(outputs, bitmap_tensor)
         loss.backward()
         optimizer.step()
@@ -159,9 +160,9 @@ for epoch in range(num_epochs):
         # 进行核方法的PCA降维
         statemap_t = kpca_state.fit_transform(statemap_t)
 
-        input_t = (torch.tensor(statemap_t).unsqueeze(0).to(torch.float32),torch.tensor(seed_t).to(torch.float32))
+        input_t = (torch.tensor(statemap_t).unsqueeze(0).to(torch.float32).to(device),torch.tensor(seed_t).to(torch.float32).to(device))
         outputs_t = net(*input_t)
-        bitmap_tensor_t = torch.tensor(bitmap, dtype=torch.float32).unsqueeze(0)
+        bitmap_tensor_t = torch.tensor(bitmap, dtype=torch.float32).unsqueeze(0).to(device)
         loss_t = criterion(outputs_t, bitmap_tensor_t)
         testing_loss += loss_t.item()
 
