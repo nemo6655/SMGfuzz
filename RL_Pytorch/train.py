@@ -1,3 +1,5 @@
+import read_binary_file
+import Test_word2vec
 import torch
 import torch.nn as nn
 import torch.optim as optim

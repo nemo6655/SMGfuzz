@@ -10,7 +10,7 @@ import torch.optim as optim
 import os
 from sklearn.decomposition import KernelPCA
 #np.set_printoptions(threshold=np.inf)
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+#os.environ["CUDA_VISIBLE_DEVICES"]="0"
 # Hyperparameters 超参数
 learning_rate = 0.0005
 gamma = 0.98
@@ -109,7 +109,7 @@ def save_to_list(epi, reward, best_seed, best_state):
         "best_state": best_state
     }
     top_k_list.append(new_dict)
-    
+
 def add_noise(matrix, mean, std):
     noise = np.random.normal(mean, std, size=matrix.shape)
     noisy_matrix = np.clip(matrix + noise, 0, 1)
@@ -398,5 +398,10 @@ sorted_list = sorted(top_k_list, key=lambda x: x["reward"])
 
 # 将每个字典写入txt文件
 for i, d in enumerate(sorted_list):
-    with open(f"Train_Result/RL_Result/"+d["best_seed"], "w") as f:
+    file_name = f"Train_Result/RL_Result/"+d["best_seed"][4:10]+'_'+"{:.4f}".format(d["reward"])
+    state_list = d["best_state"].astype(int)
+    for j in range(0,len(state_list)):
+        if state_list[j]==1:
+            file_name += '_'+str(j).zfill(3)
+    with open(file_name, "w") as f:
         np.savetxt(f, d["best_state"].astype(int), fmt='%d')

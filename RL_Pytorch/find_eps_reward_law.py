@@ -31,22 +31,22 @@ def simulate_game(num_iterations, num_points):
 
     # 绘制变化曲线
     averaged_vector = np.mean(np.array_split(new_points_counts, len(new_points_counts)//20), axis=1)
-    plt.bar(range(10, num_iterations+10,20), averaged_vector, width=10,color=(254/255,179/255,174/255), label='Monte Carlo simulation results')
+    plt.bar(range(10, num_iterations+10,20), averaged_vector, width=15,color=(155/255,184/255,205/255), label='Monte Carlo Simulation')
 
     popt_exponential, pcov_exponential = curve_fit(exponential_function, range(1, num_iterations+1), new_points_counts)
-    plt.plot(range(1, num_iterations+1), exponential_function(range(1, num_iterations+1), *popt_exponential), '--', color=(21/255,151/255,165/255),label='fit curve: $y=ae^{-bx}$')
-
+    plt.plot(range(1, num_iterations+1), exponential_function(range(1, num_iterations+1), *popt_exponential), '-', color=(238/255,199/255,89/255),linewidth=2,label='Fit Curve: $y=ae^{-bx}$')
+    #plt.plot(range(1,num_iterations+1),exponential_function(range(1,num_iterations+1), 1,-popt_exponential[1]),'-',linewidth=2,label='$f_{ offset }$: $y=ae^{-bx}$')
     plt.xlabel('Iteration')
     plt.ylabel('Newly added edges in bitmap')
     plt.legend()
     # 增加横线grid
-    plt.grid(axis='y', linestyle='-')
+    plt.grid(axis='y', linestyle='--')
 
     # 设置背景颜色为浅灰色
-    plt.rcParams['figure.facecolor'] = 'lightgray'
+    plt.tight_layout()#调整整体空白
 
     # 保存成svg格式
-    plt.savefig('Train_Result/fig/eps_reward_law.svg', format='svg')
+    plt.savefig('Train_Result/fig/eps_reward_law.pdf', format='pdf')
     plt.show()
     print(popt_exponential)
 
