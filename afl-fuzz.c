@@ -699,13 +699,12 @@ u32 state_map_choose_state_point(struct queue_entry * q){
     if(qslit->sequence_id == q->construct_sequence_id){
       if(!qslit->is_fuzzed){
         qslit->is_fuzzed++;
-        if(pre_qslit_message_end){
-          q->construct_sequence_id++;
-        }
         return qslit->id;
-      }else{
-        pre_qslit_message_end = qslit->message_end;
       }
+      if(qslit->message_end && qslit->is_fuzzed){
+        q->construct_sequence_id++;
+      }
+      
     }
   }
   if(q->construct_sequence_id == q->state_sequence_count){
