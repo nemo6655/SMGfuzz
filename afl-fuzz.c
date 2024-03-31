@@ -314,6 +314,8 @@ typedef struct {
 static FileInfo file_info[20];
 
 static u32 dqn_info_num = 0;
+static u32 dqn_NEXT_STATE = 277;
+
 
 static struct extra_data* extras;     /* Extra tokens to fuzz with        */
 static u32 extras_cnt;                /* Total number of tokens read      */
@@ -758,21 +760,19 @@ u32 state_map_choose_state_point(struct queue_entry * q){
     if(qslit->sequence_id == q->construct_sequence_id){
       if(!qslit->is_fuzzed){
         qslit->is_fuzzed++;
-        if(pre_qslit_message_end){
-          q->construct_sequence_id++;
-        }
         sp = qslit->state_point;
         if(queue_in_dqn(q)){
           if(state_in_dqn(sp)){
             return qslit->id;
           }else{
-            return 0;
+            continue;
           }
         }else{
           return qslit->id;
         }          
-      }else{
-        pre_qslit_message_end = qslit->message_end;
+      }
+      if(qslit->message_end && qslit->is_fuzzed){
+        q->construct_sequence_id++;
       }
     }
   }
@@ -10103,6 +10103,9 @@ int main(int argc, char** argv) {
                 qslit->is_fuzzed = 0;
             }
             state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
+            if(state_list_id_to_fuzz == dqn_NEXT_STATE){
+              
+            }
           }
           if(state_list_id_to_fuzz || queue_cur->to_add_list){
             skipped_fuzz = fuzz_one(use_argv);
