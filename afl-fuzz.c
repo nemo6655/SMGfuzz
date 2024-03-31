@@ -303,6 +303,18 @@ struct extra_data {
   u32 hit_cnt;                        /* Use count in the corpus          */
 };
 
+
+typedef struct {
+    int id;
+    double weight;
+    int state_id[50]; // 假设状态信息的最大长度为50个字符
+    int num_states; // 状态信息的数量
+} FileInfo;
+
+static FileInfo file_info[20];
+
+static u32 dqn_info_num = 0;
+
 static struct extra_data* extras;     /* Extra tokens to fuzz with        */
 static u32 extras_cnt;                /* Total number of tokens read      */
 
@@ -681,17 +693,64 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
 
 
 
+void get_dqn_info(const char *filename, FileInfo *info){
+
+  char temp[300];
+  strcpy(temp, filename);
+
+  char *token;
+  token = strtok(temp, "_");
+  info->id = atoi(token);
+
+  token = strtok(NULL, "_");
+  info->weight = atof(token);
+
+  info->num_states = 0;
+  while ((token = strtok(NULL, "_")) != NULL && info->num_states < 50) {
+      info->state_id[info->num_states] = atoi(token);
+      info->num_states++;
+  }
+}
+
+bool queue_in_dqn(queue_entry *queue_cur){
+  FileInfo *info;
+  for(int i = 0; i < dqn_info_num; i++){
+    info = &file_info[i];
+    if(info->id == queue_cur->index){
+      return true;
+    }
+  }
+  return false;
+
+}
+
+bool state_in_dqn(state_point_t *sp){
+  FileInfo *info;
+  for(int i = 0; i < dqn_info_num; i++){
+    info = &file_info[i];
+    for(int j = 0; j < info->num_states; j++){
+      if(info->state_id[j] == sp->id){
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 
-
-
-
-struct queue_entry *state_map_choose_seed(){
-
+void state_map_choose_seed(){
+  queue_entry * queue_tmp = queue;
+  while (queue_tmp) {
+    if(queue_in_dqn(queue_tmp)){
+      queue_tmp->was_fuzzed = 0;
+      queue_tmp->favor = 1;
+    }
+  }
 };
 
 u32 state_map_choose_state_point(struct queue_entry * q){
   queue_states_list * qslit = NULL;
+  state_point_t * sp = NULL;
   u32 pre_qslit_message_end = 0;
 
 
@@ -702,7 +761,16 @@ u32 state_map_choose_state_point(struct queue_entry * q){
         if(pre_qslit_message_end){
           q->construct_sequence_id++;
         }
-        return qslit->id;
+        sp = qslit->state_point;
+        if(queue_in_dqn(q)){
+          if(state_in_dqn(sp)){
+            return qslit->id;
+          }else{
+            return 0;
+          }
+        }else{
+          return qslit->id;
+        }          
       }else{
         pre_qslit_message_end = qslit->message_end;
       }
@@ -9524,6 +9592,10 @@ int main(int argc, char** argv) {
   u8  *extras_dir = 0;
   u8  mem_limit_given = 0;
   u8  exit_1 = !!getenv("AFL_BENCH_JUST_ONE");
+  u64 dqn_time = 0;
+  u64 dqn_time_prev = 0;
+  DIR *dqn_dir;
+  struct dirent *entry;
   //char** use_argv;
 
   struct timeval tv;
@@ -9949,7 +10021,7 @@ int main(int argc, char** argv) {
 
   check_binary(argv[optind]);
 
-  start_time = get_cur_time();
+  start_time = dqn_time_prev = get_cur_time();
 
   if (qemu_mode)
     use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
@@ -9989,67 +10061,135 @@ int main(int argc, char** argv) {
       while(1){
         u8 skipped_fuzz;
         struct queue_entry *selected_seed = NULL;
-        cull_queue();
         
+        dqn_time = get_cur_time();
+        if(dqn_time - start_time > 3600){
+          cull_queue();
+          if(dqn_time - dqn_time_prev > 1800){
+            if ((dir = opendir("/path/to/your/folder")) != NULL) {
+                dqn_info_num = 0;
 
-
-        if (!queue_cur) {
-
-          queue_cycle++;
-          current_entry     = 0;
-          cur_skipped_paths = 0;
-          queue_cur         = queue;
-
-          while (seek_to) {
-            current_entry++;
-            seek_to--;
-            queue_cur = queue_cur->next;
+                // 读取目录中的每个文件
+                while ((entry = readdir(dir)) != NULL) {
+                    // 忽略当前目录(.)和上级目录(..)
+                    if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+                        // 解析文件名
+                        get_dqn_info(entry->d_name, &file_info[dqn_info_num]);
+                        dqn_info_num++;
+                    }
+                }
+                closedir(dir);
+            } else {
+              PFATAL("Open dqn file fail!");
+            }
+            state_map_choose_seed();
           }
-        }
+          if (!queue_cur) {
 
-        selected_seed = state_map_choose_seed();
-        if(!queue_cur->to_add_list){
-          if(queue_cur->unfuzzed_state_count == 0){
-            for(queue_states_list * qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next)
-              qslit->is_fuzzed = 0;
+            queue_cycle++;
+            current_entry     = 0;
+            cur_skipped_paths = 0;
+            queue_cur         = queue;
+
+            while (seek_to) {
+              current_entry++;
+              seek_to--;
+              queue_cur = queue_cur->next;
+            }
           }
-          state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
-        }
-        if(state_list_id_to_fuzz || queue_cur->to_add_list){
-          skipped_fuzz = fuzz_one(use_argv);
-        }else{
-          if(!queue_cur->state_list_head){
-            queue_cur->was_fuzzed = 1;
-            queue_cur->unfuzzed_state_count = 0;
+          if(!queue_cur->to_add_list){
+            if(queue_cur->unfuzzed_state_count == 0){
+              for(queue_states_list * qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next)
+                qslit->is_fuzzed = 0;
+            }
+            state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
+          }
+          if(state_list_id_to_fuzz || queue_cur->to_add_list){
+            skipped_fuzz = fuzz_one(use_argv);
           }else{
-            skipped_fuzz = 1;
-            queue_cur->was_fuzzed = 1;
-            queue_cur->favored = 0;
-            queue_cur->unfuzzed_state_count = 0;
-            mark_as_redundant(queue_cur,0);
+            if(!queue_cur->state_list_head){
+              queue_cur->was_fuzzed = 1;
+              queue_cur->unfuzzed_state_count = 0;
+            }else{
+              skipped_fuzz = 1;
+              queue_cur->was_fuzzed = 1;
+              queue_cur->favored = 0;
+              queue_cur->unfuzzed_state_count = 0;
+              mark_as_redundant(queue_cur,0);
+            }
+
+          }
+          if (!stop_soon && sync_id && !skipped_fuzz) {
+
+            if (!(sync_interval_cnt++ % SYNC_INTERVAL))
+              sync_fuzzers(use_argv);
+
+          }
+          if (!stop_soon && exit_1) stop_soon = 2;
+          if (stop_soon) break;
+          //NOTE:在有seed选择和state选择情况下是否需要更新queue_cur？
+          if(queue_cur->unfuzzed_state_count == 0 || skipped_fuzz == 1){
+            queue_cur = queue_cur->next;
+            current_entry++;
+          }
+        }else{
+          cull_queue();
+          if (!queue_cur) {
+
+            queue_cycle++;
+            current_entry     = 0;
+            cur_skipped_paths = 0;
+            queue_cur         = queue;
+
+            while (seek_to) {
+              current_entry++;
+              seek_to--;
+              queue_cur = queue_cur->next;
+            }
+          }
+          // selected_seed = state_map_choose_seed();
+          if(!queue_cur->to_add_list){
+            if(queue_cur->unfuzzed_state_count == 0){
+              for(queue_states_list * qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next)
+                qslit->is_fuzzed = 0;
+            }
+            state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
+          }
+          if(state_list_id_to_fuzz || queue_cur->to_add_list){
+            skipped_fuzz = fuzz_one(use_argv);
+          }else{
+            if(!queue_cur->state_list_head){
+              queue_cur->was_fuzzed = 1;
+              queue_cur->unfuzzed_state_count = 0;
+            }else{
+              skipped_fuzz = 1;
+              queue_cur->was_fuzzed = 1;
+              queue_cur->favored = 0;
+              queue_cur->unfuzzed_state_count = 0;
+              mark_as_redundant(queue_cur,0);
+            }
+
           }
 
-        }
 
+          if (!stop_soon && sync_id && !skipped_fuzz) {
 
-        if (!stop_soon && sync_id && !skipped_fuzz) {
+            if (!(sync_interval_cnt++ % SYNC_INTERVAL))
+              sync_fuzzers(use_argv);
 
-          if (!(sync_interval_cnt++ % SYNC_INTERVAL))
-            sync_fuzzers(use_argv);
+          }
 
-        }
+          if (!stop_soon && exit_1) stop_soon = 2;
 
-        if (!stop_soon && exit_1) stop_soon = 2;
+          if (stop_soon) break;
 
-        if (stop_soon) break;
-
-        //NOTE:在有seed选择和state选择情况下是否需要更新queue_cur？
-        if(queue_cur->unfuzzed_state_count == 0 || skipped_fuzz == 1){
-          queue_cur = queue_cur->next;
-          current_entry++;
+          //NOTE:在有seed选择和state选择情况下是否需要更新queue_cur？
+          if(queue_cur->unfuzzed_state_count == 0 || skipped_fuzz == 1){
+            queue_cur = queue_cur->next;
+            current_entry++;
+          } 
         }
       }
-    
     }else{
 
       if (state_ids_count == 0) {
