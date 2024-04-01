@@ -9633,7 +9633,7 @@ int main(int argc, char** argv) {
       case 'z': /* output dir */
 
         if (dqn_dir) FATAL("Multiple -z options not supported");
-        out_dir = optarg;
+        dqn_dir = optarg;
         break;  
 
       case 'M': { /* master sync ID */
