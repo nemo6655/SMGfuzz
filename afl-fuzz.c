@@ -748,6 +748,7 @@ void state_map_choose_seed(){
       queue_tmp->was_fuzzed = 0;
       queue_tmp->favored = 1;
     }
+    queue_tmp = queue_tmp->next;
   }
 };
 
@@ -10069,14 +10070,15 @@ int main(int argc, char** argv) {
         struct queue_entry *selected_seed = NULL;
         
         dqn_time = get_cur_time();
-        if(dqn_time - start_time > 3600){
+        if(dqn_time - start_time > 3600000){
           cull_queue();
-          if(dqn_time - dqn_time_prev > 1800){
+          if(dqn_time - dqn_time_prev > 1800000){
             if (dqn_dir != NULL) {
                 dqn_info_num = 0;
-
+                DIR * dqn_dir_tmp;
+                dqn_dir_tmp = opendir(dqn_dir);
                 // 读取目录中的每个文件
-                while ((entry = readdir(dqn_dir)) != NULL) {
+                while ((entry = readdir(dqn_dir_tmp)) != NULL) {
                     // 忽略当前目录(.)和上级目录(..)
                     if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
                         // 解析文件名
@@ -10084,7 +10086,7 @@ int main(int argc, char** argv) {
                         dqn_info_num++;
                     }
                 }
-                closedir(dqn_dir);
+                closedir(dqn_dir_tmp);
             } else {
               PFATAL("Open dqn file fail!");
             }
