@@ -100,7 +100,8 @@
 
 EXP_ST u8 *in_dir,                    /* Input directory with test cases  */
           *out_file,                  /* File to fuzz, if any             */
-          *out_dir,                   /* Working & output directory       */
+          *out_dir,
+          *dqn_dir,                   /* Working & output directory       */
           *sync_dir,                  /* Synchronization directory        */
           *sync_id,                   /* Fuzzer ID                        */
           *use_banner,                /* Display banner                   */
@@ -9594,7 +9595,6 @@ int main(int argc, char** argv) {
   u8  exit_1 = !!getenv("AFL_BENCH_JUST_ONE");
   u64 dqn_time = 0;
   u64 dqn_time_prev = 0;
-  DIR *dqn_dir;
   struct dirent *entry;
   //char** use_argv;
 
@@ -9611,7 +9611,7 @@ int main(int argc, char** argv) {
   gettimeofday(&tv, &tz);
   srandom(tv.tv_sec ^ tv.tv_usec ^ getpid());
 //TODO：增加机器学习算法相关参数
-  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:QN:D:W:w:e:P:KEq:s:RFc:l:r:")) > 0)
+  while ((opt = getopt(argc, argv, "+i:o:z:f:m:t:T:dnCB:S:M:x:QN:D:W:w:e:P:KEq:s:RFc:l:r:")) > 0)
 
     switch (opt) {
 
@@ -9629,6 +9629,12 @@ int main(int argc, char** argv) {
         if (out_dir) FATAL("Multiple -o options not supported");
         out_dir = optarg;
         break;
+
+      case 'z': /* output dir */
+
+        if (dqn_dir) FATAL("Multiple -z options not supported");
+        out_dir = optarg;
+        break;  
 
       case 'M': { /* master sync ID */
 
