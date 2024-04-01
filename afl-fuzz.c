@@ -10072,7 +10072,7 @@ int main(int argc, char** argv) {
         if(dqn_time - start_time > 3600){
           cull_queue();
           if(dqn_time - dqn_time_prev > 1800){
-            if ((dqn_dir != NULL) {
+            if (dqn_dir != NULL) {
                 dqn_info_num = 0;
 
                 // 读取目录中的每个文件
