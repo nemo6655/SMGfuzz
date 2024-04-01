@@ -714,38 +714,38 @@ void get_dqn_info(const char *filename, FileInfo *info){
   }
 }
 
-bool queue_in_dqn(queue_entry *queue_cur){
+boolean queue_in_dqn(struct queue_entry* queue_cur){
   FileInfo *info;
   for(int i = 0; i < dqn_info_num; i++){
     info = &file_info[i];
     if(info->id == queue_cur->index){
-      return true;
+      return TRUE;
     }
   }
-  return false;
+  return FALSE;
 
 }
 
-bool state_in_dqn(state_point_t *sp){
+boolean state_in_dqn(state_point_t *sp){
   FileInfo *info;
   for(int i = 0; i < dqn_info_num; i++){
     info = &file_info[i];
     for(int j = 0; j < info->num_states; j++){
       if(info->state_id[j] == sp->id){
-        return true;
+        return TRUE;
       }
     }
   }
-  return false;
+  return FALSE;
 }
 
 
 void state_map_choose_seed(){
-  queue_entry * queue_tmp = queue;
+  struct queue_entry* queue_tmp = queue;
   while (queue_tmp) {
     if(queue_in_dqn(queue_tmp)){
       queue_tmp->was_fuzzed = 0;
-      queue_tmp->favor = 1;
+      queue_tmp->favored = 1;
     }
   }
 };
@@ -10066,11 +10066,11 @@ int main(int argc, char** argv) {
         if(dqn_time - start_time > 3600){
           cull_queue();
           if(dqn_time - dqn_time_prev > 1800){
-            if ((dir = opendir("/path/to/your/folder")) != NULL) {
+            if ((dqn_dir = opendir("/path/to/your/folder")) != NULL) {
                 dqn_info_num = 0;
 
                 // 读取目录中的每个文件
-                while ((entry = readdir(dir)) != NULL) {
+                while ((entry = readdir(dqn_dir)) != NULL) {
                     // 忽略当前目录(.)和上级目录(..)
                     if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
                         // 解析文件名
@@ -10078,7 +10078,7 @@ int main(int argc, char** argv) {
                         dqn_info_num++;
                     }
                 }
-                closedir(dir);
+                closedir(dqn_dir);
             } else {
               PFATAL("Open dqn file fail!");
             }
