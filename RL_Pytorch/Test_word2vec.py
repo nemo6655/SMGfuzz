@@ -43,6 +43,7 @@ seed_vec_names=seed_vectors.keys()
 seed_vec_values=seed_vectors.values()
 for seed_vec_name,seed_vec_value in zip(seed_vec_names,seed_vec_values):
     np.savetxt('Decode_Data/seed_vec/'+seed_vec_name,seed_vec_value)
-    print('seed:'+ seed_vec_name +'已转换为词向量')
+    #print('seed:'+ seed_vec_name +'已转换为词向量')
+print('------Word Vector Conversion Completed------')
 
 

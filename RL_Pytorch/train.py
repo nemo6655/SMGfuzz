@@ -119,7 +119,7 @@ for file2 in folder2_files:
         if file1_name == file2_name:
             # 读取文件夹1中的列向量数据
             file1_data = np.loadtxt(os.path.join(folder1_path, file1))
-            #file1_data /=np.max(file1_data)
+            file1_data /=np.max(file1_data)
             # 读取文件夹2中的矩阵数据
             file2_data = np.loadtxt(os.path.join(folder2_path, file2))
             file2_data = add_noise(file2_data, mean=0, std=0.01) #加噪声
@@ -129,7 +129,7 @@ for file2 in folder2_files:
             train_loader.append((file1_data,file2_data,file3_data))
 
 
-train_data, test_data = split_dataset(train_loader, 0.8) #train:test=9:1
+train_data, test_data = split_dataset(train_loader, 0.8) #train:test=8:2
 
 print("train:"+str(len(train_data))+",test:"+str(len(test_data)))
 
@@ -172,6 +172,7 @@ for epoch in range(num_epochs):
 
 #保存参数
 torch.save(net.state_dict(), 'Train_Result/model/model_'+time_str+'.pth')
+print("------Model has been Saved------")
 #绘制并保存图像
 #plot_loss(train_loss, test_loss)
 

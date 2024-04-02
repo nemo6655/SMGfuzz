@@ -20,8 +20,8 @@ MAX_EPISODE = 100
 
 #考虑到对一个新的全局bitmap,前几次（普通）变异也会快速覆盖很多边，而后续（哪怕是精彩的）变异也只会新增少量的边，符合指数函数规律，需要加权重来计算奖励。
 #参数由find_eps_reward_law.py得到
-n_epi_a = 1/1.22133587e+03
-n_epi_b = 1.84394276e-02
+n_epi_a = 1/2.06457084e+03
+n_epi_b = 3.10658261e-02
 #文件夹路径
 seed_path = 'Decode_Data/seed_vec'
 bitmap_path = 'Decode_Data/bitmap'
@@ -245,6 +245,7 @@ class Fuzzenv():
     def pred_bitmap(self, choice_seed, state):
         kpca_state = KernelPCA(n_components=16, kernel='rbf')
         choice_seed_data = np.loadtxt(seed_path+'/'+choice_seed[0])
+        choice_seed_data /= np.max(choice_seed_data)
         state_map_data = state[2:].reshape(16,16)
         state_map_data = add_noise(state_map_data, mean=0, std=0.01)
         state_map_data = kpca_state.fit_transform(state_map_data)
@@ -381,19 +382,18 @@ for n_epi in range(MAX_EPISODE):
         print("n_episode :{}, score : {:.2f}, n_buffer : {}, eps : {:.2f}%".format(
             n_epi, score / print_interval, trainer.memory.size(), epsilon * 100))
         #score = 0.0
-    
+print('------Reinforcement Learning Preferred Outcomes------')
 print("best predict's reward:"+str(best_predict))
 print("best state:"+str(best_state))
-print('total_bits:'+str(total_bits))
+print('total_bits:'+str(sum(sum(total_bits)))+'/65536')
 print('best epi:'+str(best_epi))
 print('best seed:'+seeds[int(best_state[0])])
-print('num of files added:'+str(len(top_k_list)))
 # 按照键值为数字的键进行排序
 sorted_list = sorted(top_k_list, key=lambda x: x["reward"])
 
 # 将每个字典写入txt文件
 for i, d in enumerate(sorted_list):
-    file_name = f"Train_Result/RL_Result/"+d["best_seed"][4:10]+'_'+"{:.4f}".format(d["reward"])
+    file_name = f"Train_Result/RL_Result/"+d["best_seed"][3:9]+'_'+"{:.4f}".format(d["reward"])
     state_list = d["best_state"].astype(int)
     for j in range(0,len(state_list)):
         if state_list[j]==1:

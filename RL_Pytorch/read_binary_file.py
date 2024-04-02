@@ -59,7 +59,7 @@ for file_name in train_names:
             # 输出矩阵数据
             matrix = matrix.reshape((256, 256))
             np.savetxt('Decode_Data/bitmap/'+file_name+'.txt', matrix, fmt='%d')
-            print(file_name+'已解析')
+            #print(file_name+'已解析')
     if file_name.startswith("statemap"):
         # 构建文件的完整路径
         file_path = os.path.join(train_path, file_name)
@@ -80,8 +80,8 @@ for file_name in train_names:
             result = np.array(result).reshape((16,16))
             result[0,0] = 1
             np.savetxt('Decode_Data/statemap/'+file_name+'.txt', result, fmt='%d')
-            print(file_name+'已解析')
-
+            #print(file_name+'已解析')
+print('------Statemaps and Bitmaps have been Decoded------')
 for file_name in seed_names:
     if file_name.startswith("id"):
         file_path = os.path.join(seed_path, file_name)
@@ -91,7 +91,7 @@ for file_name in seed_names:
 
         with open('Decode_Data/seed/'+file_name+'.txt', 'w', encoding='ascii') as file:
             file.write(decoded_text)
-        print(file_name+'已解析')
-
+        #print(file_name+'已解析')
+print('------Seed Files have been Decoded------')
 
 
