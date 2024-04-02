@@ -1,7 +1,7 @@
 import time
 for t in range(0,50):
     time.sleep(60)
-    print('Waiting for running SMGfuzz, has been waiting for '+str(t)+'mins')
+    print('------Waiting for running SMGfuzz, has been waiting for '+str(t+1)+'mins------')
 
 for i in range(0,48):
     time_start = time.time()
