@@ -1,0 +1,127 @@
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0ession: 000022B8
+Ranl
+CSeq: 6
+User-Agent: ./testRTSPClient (IVE455 Streaming Media v2018.08.28)
+Session: 0LAleTe//127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+UsXXXXXXXXXXXXXXXXXXXXXXient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt?0.000-
+
+ 
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0ession: 000022B8
+Ranl
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 0LAleTe//127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+UsXXXXXXXXXXXXXXXXXXXXXXient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt?0.000-
+
+ 
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0ession: 000022B8
+Ranl
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE455 Streaming 018.08.28)
+Session: 0LAleTe//127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+UsXXXXXXXXXXXXXXXXXXXXXXient (LIVE55 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt?0.000-
+
+ 
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0ession: 000022B8
+Ranl
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 0LAleTe//127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+UsXXXXXXXXXXXXXXXXXXXXXXient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt?0.000-
+
+ 
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0ession: 000022B8
+Ranl
+CSeq: 6
+User-Agent: ./testRTSPClient (IVE455 Streaming Media v2018.08.28)
+Session: 0LAleTe//127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+UsXXXXXXXXXXXXXXXXXXXXXXient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt?0.000-
+
+ 
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0ession: 000022B8
+Ranl
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 0LAleTeest/ RTSP/1.0
+CSeq: 5
+UsXXXXXXXXXXXXXXXXXXXXXXient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt?0.000-
+
+ 
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0ession: 000022B8
+Ranl
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE455 Streaming 018.08.28)
+Session: 0LAleTe//127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+UsXXXXXXXXXXXXXXXXXXXXXXient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt?0.000-
+
+ 
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0ession: 000022B8
+Ranl
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 0LAleTe//127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+UsXXXXXXXXXXXXXXXXXXXXXXient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Rane: npt?0.000-
+
+ 
+
+SETUP rtsp://127.0.0.1:8554/wavAudioTest/track1 RTSP/1.0
+CSeq: 3
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=37952-37953
+
+PLAY rtsp://127.0.0.1:8554/wavAudioTest/ RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+

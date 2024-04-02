@@ -1,5 +1,3 @@
-import read_binary_file
-import Test_word2vec
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -10,7 +8,7 @@ import random
 import matplotlib.pyplot as plt
 from datetime import datetime
 from sklearn.decomposition import KernelPCA
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #torch.set_printoptions(threshold=sys.maxsize) #使print显示完全
 # 获取当前时间
@@ -116,7 +114,7 @@ folder3_files = [f for f in os.listdir(folder3_path) if f.endswith(".txt")]
 for file2 in folder2_files:
     file2_name = file2[9:15]
     for file1 in folder1_files:
-        file1_name = file1[4:10]
+        file1_name = file1[3:9]
         # 判断两个文件名是否相同
         if file1_name == file2_name:
             # 读取文件夹1中的列向量数据

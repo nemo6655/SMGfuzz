@@ -17,13 +17,11 @@ gamma = 0.98
 buffer_limit = 50000
 batch_size = 32
 MAX_EPISODE = 100
-RENDER = False
 
 #考虑到对一个新的全局bitmap,前几次（普通）变异也会快速覆盖很多边，而后续（哪怕是精彩的）变异也只会新增少量的边，符合指数函数规律，需要加权重来计算奖励。
 #参数由find_eps_reward_law.py得到
-n_epi_a = 1/1.01303312e+03 
-n_epi_b = 1.53492932e-02
-
+n_epi_a = 1/1.22133587e+03
+n_epi_b = 1.84394276e-02
 #文件夹路径
 seed_path = 'Decode_Data/seed_vec'
 bitmap_path = 'Decode_Data/bitmap'
@@ -117,7 +115,7 @@ def add_noise(matrix, mean, std):
 
 def find_statemap_and_avaistate(state0):
     choice_statemap = statemaps[int(state0)]
-    choice_seed = [string for string in seeds if len(string) >= 10 and string[4:10] == choice_statemap[9:15]]
+    choice_seed = [string for string in seeds if len(string) >= 10 and string[3:9] == choice_statemap[9:15]]
     # 使用 np.loadtxt 读取文件
     matrix = np.loadtxt(statemap_path+'/'+choice_statemap, delimiter=' ', dtype=int)
     # 将矩阵 reshape 成 1*256
@@ -207,9 +205,6 @@ class Fuzzenv():
         #预测旧状态可能影响的bitmap和新状态可能影响的bitmap
         predict = self.pred_bitmap(choice_seed,self.current_state) 
         next_predict = self.pred_bitmap(choice_seed,next_state)
-
-        #total_bits = add_and_threshold(total_bits,predict)
-        #next_total_bits = add_and_threshold(total_bits, next_predict)
 
         #计算奖励
         reward = n_epi_a*np.exp(n_epi_b*n_epi)*self.calculate_reward(next_predict)
@@ -350,8 +345,8 @@ trainer = Dueling_DQN()
 net = MyNet()
 
 directory = 'Train_Result/model'  # 替换为实际的目录路径
-#lastest_model = get_nearest_file(directory)
-lastest_model = directory+"/model_2024-03-13 11:19:58.pth"
+lastest_model = get_nearest_file(directory)
+#lastest_model = directory+"/model_2024-03-13 11:19:58.pth"
 net.load_state_dict(torch.load(lastest_model))
 
 print_interval = 1
@@ -392,7 +387,7 @@ print("best state:"+str(best_state))
 print('total_bits:'+str(total_bits))
 print('best epi:'+str(best_epi))
 print('best seed:'+seeds[int(best_state[0])])
-print(len(top_k_list))
+print('num of files added:'+str(len(top_k_list)))
 # 按照键值为数字的键进行排序
 sorted_list = sorted(top_k_list, key=lambda x: x["reward"])
 

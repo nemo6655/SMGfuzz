@@ -1,0 +1,15 @@
+TEmatroPLAYileTest																							e-t/ RTSP/rokaFyleTeqd G
+User-reamiAoen./te0&8.TEARDOWN(ztsp://1*8.2webmTileTest8)
+Sesion: 00002F8
+
+TEmatroPLAYileTest																							e-t/ RTSP/rokaFyleTeqd G
+User-reamiAoen./te0&8.TEARDOWN(ztsp://1*8.2webmTileTest8)
+Sesion: 00002F8
+
+TEARDOWN rtsp://127.0.0.1:8554/eatroskaFileTest/ RTSP/1.?
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+
+PLAY rtsp:/00-
+

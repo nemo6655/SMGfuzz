@@ -24,8 +24,8 @@ def generate_matrix(binary_data):
     return matrix
  
 # 文件夹路径
-train_path = "output/train"
-seed_path = "output/queue"
+train_path = "/home/lddc/SHENYANLONG/live555/testProgs/output/train/"
+seed_path = "/home/lddc/SHENYANLONG/live555/testProgs/output/queue/"
 
 #清空之前的结果
 if os.path.exists('Decode_Data/bitmap/'):
