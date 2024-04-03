@@ -308,11 +308,11 @@ struct extra_data {
 typedef struct {
     int id;
     double weight;
-    int state_id[50]; // 假设状态信息的最大长度为50个字符
+    int state_id[256]; // 假设状态信息的最大长度为50个字符
     int num_states; // 状态信息的数量
 } FileInfo;
 
-static FileInfo file_info[20];
+static FileInfo file_info[100];
 
 static u32 dqn_info_num = 0;
 static u32 dqn_NEXT_STATE = 277;
@@ -698,7 +698,7 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
 
 void get_dqn_info(const char *filename, FileInfo *info){
 
-  char temp[300];
+  char temp[1000];
   strcpy(temp, filename);
 
   char *token;
@@ -10070,7 +10070,7 @@ int main(int argc, char** argv) {
         struct queue_entry *selected_seed = NULL;
         
         dqn_time = get_cur_time();
-        if(dqn_time - start_time > 3600000){
+        if(dqn_time - start_time > 7200000){
           cull_queue();
           if(dqn_time - dqn_time_prev > 1800000){
             if (dqn_dir != NULL) {

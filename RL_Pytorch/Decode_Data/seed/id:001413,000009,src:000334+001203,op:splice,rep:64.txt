@@ -1,0 +1,71 @@
+DESCRIBE rtsp://127.0.0.1:8554/matPoskaFileTest RTSP/1.0
+CSeq: 2
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Accept: apnsport: RTP/AVP;unicast;client_port=49026-49023
+Session: 000022B8
+
+
+SRange: npt=9EhWsp:/8
+
+
+
+SEhWsp:/8
+
+
+
+SEhWsp:/8
+
+AVP
+
+SEhWsp:/8
+
+
+
+SEhWsp:/8
+
+
+
+SEhWspA/8
+
+
+
+SEAVPp:/8
+
+
+
+SEsp:/8
+
+
+
+SEhWsp:/8
+
+
+
+SEhWsp:/8
+
+
+
+SEhWsq:/8
+
+
+
+SEhWsp:/8
+
+
+
+SEhWsp:/
+
+SEhWsp:/8
+
+
+
+SEsp:/8
+
+PLAY rtsp://12730.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSv2018.08.LIVE555 Streaming Media v2018.080-
+
+PLAY rtsp://12730.0.28)
+Session: 000022B8
+Range: npt=0.000-
+

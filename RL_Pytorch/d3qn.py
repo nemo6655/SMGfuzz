@@ -347,7 +347,7 @@ net = MyNet()
 
 directory = 'Train_Result/model'  # 替换为实际的目录路径
 lastest_model = get_nearest_file(directory)
-#lastest_model = directory+"/model_2024-03-13 11:19:58.pth"
+#lastest_model = directory+"/model_2024-04-02 20:09:32.pth"
 net.load_state_dict(torch.load(lastest_model))
 
 print_interval = 1
@@ -390,7 +390,8 @@ print('best epi:'+str(best_epi))
 print('best seed:'+seeds[int(best_state[0])])
 # 按照键值为数字的键进行排序
 sorted_list = sorted(top_k_list, key=lambda x: x["reward"])
-
+if best_predict==0:
+    os.remove(lastest_model)
 # 将每个字典写入txt文件
 for i, d in enumerate(sorted_list):
     file_name = f"Train_Result/RL_Result/"+d["best_seed"][3:9]+'_'+"{:.4f}".format(d["reward"])

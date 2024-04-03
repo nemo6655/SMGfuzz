@@ -1,0 +1,55 @@
+TEkaFileTest/ RTSP/1.0
+ARDO55555555555555555WN rtsp://1 7.0.01:8554/mast/ RTSP/1.0
+CSeq: 6
+UmatroskaFileTestser-Agent: ./testRTSPClieSt (LIVE555 SFileTest/ RSP/GET_PARAMETER
+Session: 000022B8
+
+TEl"Agenst/ RT\P/1./
+CSeq:=6
+ ./testRTS@CliAgent: PE555 Streamins M
+Usjr-A
+TEkaFileTest/ RTSP/1.0
+ARDO55555555555555555WN rtsp://1 7.0.0 6
+User-Agent: ./testRnSPClieSt (LIVE555 SFileTestSP/GET_PARAMETER
+Session: 000022B8
+
+TEl"Agenst/ RT\P/1./
+CSeq:=6
+ ./testRTSPCliAgent: PE555 Streamins M
+Usjr-A
+TEkaFileTest/ RTSP/1.0
+ARDO55555555555555555WN rtsp://1 7.0.01:8554/mast/ RTSP/1.0
+CSeq: 6
+UmatroskaFileTestser-Agent: ./testRTSPClieSt (LIVE555 SFileTest/ RSP/GET_PARAMETER
+Session: 000022B8
+
+TEl"Agenst/ RT\P/1./
+CSeq:=6
+ ./testRTS@CliAgent: PE555 Streamins M
+Usjr-A
+TEkaFileTest/ RTSP/1.0
+ARDO55555555555555555WN rtsp://1 7.0.0 6
+User-Agent: ./testRnSPClieSt (LIVE555 SFileTestSP/GET_PARAMETER
+Session: 000022B8
+
+TEl"Agenst/ RT\P/1./
+CSeq:=6
+ ./testRTSPCliAgent: PE555 Streamins M
+Usjr-A
+SETUP rtsp://127.0.0.1:8554/matroskaFileTest/track2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=49022-49023
+Session: 000022B8
+
+PLAY rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+

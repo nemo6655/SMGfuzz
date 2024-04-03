@@ -1,0 +1,73 @@
+TEARDOWN rtsp:/9127.0.0.1:8554/matroskaFileTest/ RRange: npt=9TSP/1.0
+CSeq: 6
+User-Agent: ./testgTSPClient (LIVE555 Streaming Media v2018.08.28)Session: 000022B8
+
+DESCRIBE rtsp://127.0.0.1:8554/matrosRaFileTest RTSP/1.0
+CSeq: 2
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v20;8.08.28)
+Accept: application/sdp
+
+DESCRIBE rtsp://127.0.0.1:8554/matrosRaFileTest RTSP/1.0
+CSeq: 2
+User-Agent: ./testRTSPClient (LIVE555 Streaminia v20;8.08.28)
+Accept: application/sdp
+
+TE1:8554/matrosRaFiARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RRange: npt=9TSP/1.0
+CSeq: 6
+Usr-Agent: ./testgTSPClient (LIVE555 Streaming Media v2818.08.28)Session: 000022B8
+
+DESCRIB: rtsp://127.0.0.1:8554/matrosRaFileTest RTSP/1.0
+CSeq: 2
+USer-Agent: ./testRTSPClient (LIVE555 St eaming Media v20;8.08.28)
+Accept: application/sdp
+
+DESCRIBE rtsp://127.0.0.1:8554/ratrosRaFileTet RTSP/1.0
+CSeq: 2
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v20;8.08.24)
+Accept: applicaion/sdp
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RRange: npt=9TSP/1.0
+CSeq: 6
+User-Agent: ./testgTSPClient (LIVE555 Streaming 5edia v2018.08.28)Session: 000022B8
+
+DESCRIBE rtsp://127.0.0.1:8554/matrosRaFileTest RTSP/1.0
+CSeq: 2
+User-Agent: 0/te5 StrPClient (LIVE555 Streaming Media v20;8.08.28)
+Accept: application/sdp
+
+DESCRIBE rtsp://127.0.0.1:8554/matrosRaFileTest RTSP/1.0
+CSeq: 2
+User-Agdnt: ./testRTSPClient (LIVE555 Streaming Media v20;8.8.28)
+Accept: application/sdp
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RRan1.0
+CSeq: 6
+User-Agent: ./testgTSPClient (LIVE555 Streaming Media .0.0.1:8554/matrosRaFiv2018.08.28)Session: "00022B8
+
+DESCRIB: rtsp://127.0.0.1:8554/matrosRaFileTest RTSP/1.0
+CSeq: 2
+User-Agent: ./testeTSPClient (LIVE555 Streaming Media v20;8.08.28)
+Accept: application/sdp
+
+DESCRIBE rtsp://127.0.0.1:8554/matrosRaFileTest RTSP/1.0
+CSeq: 2
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v20;8.08.28)
+Accept: application/sdp
+
+SETUP rtsp://127.0.0.1:8554/matroskaFileTest/track2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=49022-49023
+Session: 000022B8
+
+PLAY rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+

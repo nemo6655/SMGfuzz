@@ -1,0 +1,40 @@
+PLAY rtsp://127.0.0.1:8554/matroskaFist/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8Range: npt=0.000-
+
+P?AY rtsp://127.0.0.1:8554/matroskFileTest/ RTSP/1.0
+CSeq:-5
+User-Agent: ./TransporttestRTSPCt (LIVE555 Streaming Media v2018.08.28)
+S.28)
+Session:  npt=8&054/magewebmFiletroskFileTest/ RTSP/1.0
+CSeq: 5
+User-AgewebmFilestnt: ./TraysporttestRTSnt (LIVE555 Streaming ming Media v2018.08.28)
+Session:  npt=0&000-
+
+P?Y rtsp://127.0.0.1:8554/matroskFileTest/ RTSP/1.0
+CSeq:-5
+User-Agent: ./TransporttestRTSPCt (LIVE555 Streaming Media v2018.08.28)
+S.28)
+Session:  npt=8&054/magewebmFiletroskFileTest/ RTSP/1.0
+CSeq: 5
+User-AgewebmFilestnt: ./TraysporttestRTSnt (LIVE555 Streaming ming Media v2018.08.28)
+Session:  npt=0&000-
+
+DESCRIBE rtsp://127.0.0.1:8554/matroskaFileTest RTSP/1.0
+CSeq: 2
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Accept: application/sdp
+
+PLAY rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media 2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+
+PLAY rtsp://127.0.0.1:8554/okaFilmatroskaFileTest/ RTSP/1.0
+^Seq: 5
+User-Agent: ./testRTSPClient (LIVE555 StrEaming Media v2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+

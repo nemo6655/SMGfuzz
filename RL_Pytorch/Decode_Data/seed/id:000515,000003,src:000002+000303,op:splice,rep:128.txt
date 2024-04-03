@@ -1,0 +1,57 @@
+PLAYac3AudioTest0.0.1:8554/matroskaFileTest/ RUser-AgentSeq: 5
+Ust RTSeq: 2
+User-Ageer-Agent: POPTIONSRTSPClient SETUP555 Streaming Media v2018.08.28)
+Session: 000t=0.000-
+
+PLAY rtsp://127.0.aFileTest/ RUser-AgentSeq: 5
+Ust RTSeq: 2
+User-Ageer-Agent: P4./testRTSPClient SETUP555 Streaming Media v2018.08.28)
+Session: 00t=0.000-
+
+PLAYac3AudioTest0.0.1:8554/matroskaFileTest/ RUser-AgentSeq: 5
+Ust RTSeq: 2
+User-Ageer-Agent: POPTIONSRTSPClient SETUP555 Streaming Media v2018.08.28)
+Session: 000t=0.000-
+
+PLAY rtsp://127.0.aFileTest/ RUser-AgentSeq: 5
+Ust RTSeq: 2
+User-Ageer-Agent: P4./testRTSPClient SETUP555 Streaming Media v2018.08.28)
+Session: 000t=0.000-
+
+PLAYac3AudioTest0.0.1:8554/matroeq: 5
+Ust RTSeq: 2
+User-Ageer-Agent: POPTIONSRTSPClient SETUP555 Streaming Media v2018.08.28)
+Session: 000t=0.000-
+
+PLAY rtsp://127.0.aFileTest/ RUser-AgentSeq: 5
+Ust RTSeq: 2
+User-Ageer-Agent: P4./testRTSPClient SETUP555 Streaming Media v2018.08.28)
+Session: 000t=0.000-
+
+PLAYac3AudioTest0.0.1:8554/matroskaFileTest/ RUser-AgentSeq: 5
+Ust RTSeq: 2
+User-Ageer-Agent: POPTIONSRTSPClient SETUP555 Streaming Media v2018.08.28)
+Session: 000t=0.000-
+
+PLAY rtsp://127.0.aFileTest/ RUssr-AgentSeq: 5
+Ust RTSeq: 2
+User-Ageer-Agent: P4./testRTSPClient SETUP555 Streamin Media v2018.08.28)
+Session: 000t=0.000-
+
+SETUP rtsp://127.0.0.1:8554/matroskaFileTest/track2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=49022-49023
+Session: 000022B8
+
+PLAY rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+

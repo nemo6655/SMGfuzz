@@ -129,7 +129,7 @@ for file2 in folder2_files:
             train_loader.append((file1_data,file2_data,file3_data))
 
 
-train_data, test_data = split_dataset(train_loader, 0.8) #train:test=8:2
+train_data, test_data = split_dataset(train_loader, 0.9) #train:test=9:1
 
 print("train:"+str(len(train_data))+",test:"+str(len(test_data)))
 
