@@ -25,7 +25,10 @@ def plot_loss(train_loss, test_loss):
     plt.ylabel('Loss')
     plt.legend()
     plt.grid(1, linestyle='--')
-    plt.savefig('Train_Result/fig/loss'+time_str+'.pdf', format='pdf')
+    plt.savefig('Train_Result/fig/loss_'+time_str+'.pdf', format='pdf')
+    loss_data = np.column_stack((np.array(train_loss), np.array(test_loss)))
+    # 使用 savetxt 函数写入数据到文件
+    np.savetxt('Train_Result/loss/'+time_str+'.txt', loss_data, delimiter=' ', fmt='%.4f')
 
 #添加高斯白噪声的函数   
 def add_noise(matrix, mean, std):
@@ -175,7 +178,7 @@ for epoch in range(num_epochs):
 torch.save(net.state_dict(), 'Train_Result/model/model_'+time_str+'.pth')
 print("------Model has been Saved------")
 #绘制并保存图像
-#plot_loss(train_loss, test_loss)
+plot_loss(train_loss, test_loss)
 
 
 
