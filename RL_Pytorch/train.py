@@ -14,7 +14,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # 获取当前时间
 current_time = datetime.now()
 # 将当前时间格式化为字符串
-time_str = current_time.strftime('%Y-%m-%d %H:%M:%S')
+time_str = current_time.strftime('%Y_%m_%d_%H%M%S')
 
 # 绘制loss损失函数（保存文件名包含时间）
 def plot_loss(train_loss, test_loss):
@@ -24,7 +24,8 @@ def plot_loss(train_loss, test_loss):
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
     plt.legend()
-    plt.savefig('Train_Result/fig/loss'+time_str+'.svg', format='svg')
+    plt.grid(1, linestyle='--')
+    plt.savefig('Train_Result/fig/loss'+time_str+'.pdf', format='pdf')
 
 #添加高斯白噪声的函数   
 def add_noise(matrix, mean, std):

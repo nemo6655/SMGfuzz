@@ -1,0 +1,68 @@
+TEARDOWN rtsp://127.0.0.1:8554/mp3AudioTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+
+DESCRIBEmatroskaFileTest RTSP/1.0
+CSeq: 2
+User-Aoent: ./testRTSPCliE555 Streaming Media v2018.08.28)
+Accept: application/sdp
+
+TEjRDOWN rtsp: /~27.0.0.1:8554/matroskaFileTest: ./AcceptSPClient (LIVE555 StAVPreaming Med Streaming Media v2018.08.28)
+ia v2018.08.28)
+Session:v2018.08. 000022B8
+
+SETUP rtsp://127.0.0.1:8554/matroskaFileTest/track2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=49022-49023
+Session: 000tsp://127.0.0.1:8554/matroskaFileTest RTSP/1.0
+CSeq: 2
+User-Agent: ./testRTSPCliient (LIVE555 Streaming Media v201E.08I28)
+Session: 000022B8
+
+DESCRIBEmatroskaFileTest RTSP/1.0
+CSeq: 2
+User-Aoent: ./testRTSPCliE555 Streaming Media v2018.8)Accept: applicatioV/sdp
+
+TEjRDOWN rtsp: /127.0.0.1:8554/matroskaFileTest: ./AcceptSPClient (LIVE555 StAVPreaming Md Streaming Media v2018.08.28)
+ia v2018.08.28)
+Session:v2018.08. 00002liient (LIVE555 Streaming Media2B8
+
+SETUP rtsp://127.0.0.1Accept:8554/matroskaFileTent (LIVE555 Streamingest/track2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.2RTP/AVP;unicast;client_port=49022-49023
+Session: 000022B8
+
+DESCRIBE rtsp://127.0.0.1:8554/matroskaFileTest RTSP/1.0
+CSeq: 2
+User-Agent: ./testRTSPCliient (LIVE555 Streaming Media v201E.08I28)
+Session: 000022B8
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+
+SETUP rtsp://127.0.0.1:8554/matroskaFileTest/track2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=49022-49023
+Session: 000022B8
+
+PLAY rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+

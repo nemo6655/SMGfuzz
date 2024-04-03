@@ -40,7 +40,7 @@ def simulate_game(num_iterations, num_points):
     plt.ylabel('Newly added edges in bitmap')
     plt.legend()
     # 增加横线grid
-    plt.grid(axis='y', linestyle='--')
+    plt.grid(1, linestyle='--')
 
     # 设置背景颜色为浅灰色
     plt.tight_layout()#调整整体空白
@@ -50,8 +50,8 @@ def simulate_game(num_iterations, num_points):
     plt.show()
     print(popt_exponential)
 
-num_iterations = 400  # 迭代轮次
-num_points = 1000  # 每轮生成的点数
+num_iterations = 200  # 迭代轮次
+num_points = 2000  # 每轮生成的点数
 simulate_game(num_iterations, num_points)
 
 

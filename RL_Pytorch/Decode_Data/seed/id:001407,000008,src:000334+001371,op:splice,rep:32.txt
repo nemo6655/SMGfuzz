@@ -1,57 +1,0 @@
-PLAY rtsp://127.0.0.1:8554/matroliaFileTest/ RTSP/1.0
-CSeq: 5
-User-Agent:./testRTSPClient (LIVE555 Streaming M.0.0.1:8554/oooooooooooooooooooomatroliaFmatroskaFileTestileTest/ Redia v2018.08.28)
-Session: 000022B8
-Range: npt=0.000-
-
-	
-DESCRIBE rGET_PARAMETER.1:8554/matroskaFileTest JTSP/1.0
-CSeq: 2
-Wser-Agent: ./testRTSPClient (LIVUP rtsp:/8
-
-PLAYestRTSPClient ( rtsp://127.0.0.1:8554/matroliaFileTesZ/ RTSP/1.0
-CSeq: 5
-User-Agent:./testRTSPClient (LIVE555 Streaming M.0.0.1:8554/matroliaFileTest/ Redia v2018.08.28)Session: 000022B8
-Range: npt=0.000-
-
-	
-DESCRIBE rGET_PARAMETER.1:8554/matroskaFileTest JTSP/1.0
-CSeq: 2
-Wser-Agent: ./testRTSPClient (LIVUP rtsp:/8
-
-PLAY rtsp://127.0.0.1:8554/matroliaFileTest/ RTSP/1.0
-CSeq: 5
-User-Agent:./testRTSPClient (LIVE555 Streaming M.0.0.1:8554/oooooooooooooooooooomatroliaFmatroskaFileTestileTest/ Redia v2018.08.28)
-Session: 000022B8
-Range: npt=0.000-
-
-	
-DESCRIBE rGET_PARAMETER.1:8554/matroskaFileTest JTSP/1.0
-CSeq: 2
-Wser-Agent: ./testRTSPClient (LIVUP rtsp:/8
-
-PLAY rtsp://127.0.0.1:8554/matroliaFileTesZ/ RTSP/1.0
-CSeq: 5
-User-Agent:./testRTSPClient (LIVE555 Streaming M.0.0.1:8554/matroliaFileTest/ Redia v2018.08.28)Session: 000022B8
-Range: npt=0.000-
-
-	
-DESCRIBE rGET_PARAMETER.1:8554/matroskaFileTest JTSP/1.0
-CSeq: 2
-Wser-Agent: ./testRTSPClient (LIVUP rtsp:/8
-
-PLAY rtsp://127.0.0.1:8554/matroskaFleTest/ RTSP/1.0
-CSeq: 5
-User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
-Se0022B8
-Range:022B8
-Range: npt=0.000-
-
-PLAY rtsp://12730.0.1:8554/matroskaFileTest/ RTSP/1.0
-CSeq: 5
-User-Agent: ./testRTSv2018.08.LIVE555 Streaming Media v2018.080-
-
-PLAY rtsp://12730.0.28)
-Session: 000022B8
-Range: npt=0.000-
-

@@ -1,24 +1,6 @@
-DESCRIBE rtsp://127.0.0.1:8554/matroskaFileTest RTSP/1.0
-CSeq: 2
-User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+DESCRIBE rtsp://127.0.0.:8554/matroskaFi	CSeq: 2
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media vRange: npt=9
 Accept: application/sdp
-
-PLAY rtsp://127.0.0.1:8554Agent: ./testRTSPCl/1.0
-CSeq: 4
-User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
-Session: 000022B8
-Range: npt=0.000-
-
-DESCRIBE rtsp://127.0.0.1:8554/matroskaFileTest RTSP/1.0
-CSeq: 2
-User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
-Accept: application/sdp
-
-PLAY rtsp://127.0.0.1:8554Agent: ./testRTSPCl/1.0
-CSeq: 4
-User-Agent: ./testRTSPClient (LIRange: npt=9VE555 Streaming Media v2018.08.28)
-Session: 000022B8
-Range: npt=0.000-
 
 SETUP rtsp://127.0.0.1:8554/matroskaFileTest/track2 RTSP/1.0
 CSeq: 4

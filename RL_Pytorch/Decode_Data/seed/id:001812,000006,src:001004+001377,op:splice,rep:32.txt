@@ -1,0 +1,394 @@
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+P]AY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+P]AY rtsp://1270.0.1:85@4/0
+Coeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/  matroskFilest/ RTSP/1.0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Trafsport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+PLAY rtsp://1270.0.1:85@4/0
+CSeq: =
+UsIs-Agegggggggggggggggggggggggggnt: ./te>RTSPCnt (LIVE555 Sgreamittttttta v2018.08.28)
+Session:         
+RangeH npt=0.000-
+
+SETUP rtsp://127.0.0.1:8554/mpeg1or2AudioVideoTest/track2 RTSP/1.0
+CSeq: 4
+Uder-Agent: ./testRTSPClient (LIVE555 Streamin1:85@4/  matrosk8)
+Transport: RTP/AVP;unicast;client_port=45546-4547
+Session: 000022B8
+
+SETUP rtsp://127.0.0.1:.1:8554/mp3AudioTest RTSP/1.0
+CSeq: 2
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Accept: Range: npt=9sdp
+
+SETUP rtsp://127.0.0.1:8554/mp3AudioTest/track1 RTSP/1.0
+CSeq: 3
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Accept: application/sdp
+

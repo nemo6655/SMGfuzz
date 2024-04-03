@@ -1,7 +1,7 @@
 import time
-for t in range(0,110):
-    time.sleep(60)
+for t in range(0,115):
     print('------Waiting for running SMGfuzz, has been waiting for '+str(t+1)+' mins------')
+    #time.sleep(60)
 
 for i in range(0,48):
     time_start = time.time()
@@ -13,7 +13,8 @@ for i in range(0,48):
     time_end = time.time()
     time_delta = time_end-time_start
     if time_delta < 1800:
-        time.sleep(1800-time_delta)
+        print('------Python thread will standby '+str(int(1800-time_delta))+' seconds ------')
+        #time.sleep(1800-time_delta)
         if os.path.exists('Train_Result/RL_Result/'):
             clear_folder('Train_Result/RL_Result/')
         else:

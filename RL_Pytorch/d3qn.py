@@ -347,7 +347,6 @@ net = MyNet()
 
 directory = 'Train_Result/model'  # 替换为实际的目录路径
 lastest_model = get_nearest_file(directory)
-#lastest_model = directory+"/model_2024-04-02 20:09:32.pth"
 net.load_state_dict(torch.load(lastest_model))
 
 print_interval = 1

@@ -1,0 +1,19 @@
+TEARD12R00-
+
+TEARD12R00-
+
+TEARD12R00-
+
+TEARD12R00-
+
+PLAY rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+SessIon: 000022B8
+Range: npt=0.000-
+
+TEARDOWN rtspwavAudioTest:8554/matroskaFileTest/ RTSP/1.0
+CSel: 6
+User-Agn: 000ent: ./testRTSPClient (LIVE555 treaming Media v2018.08.28)
+Sessioo: 000022B8
+
