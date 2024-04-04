@@ -1,0 +1,27 @@
+TEARDOWN rtsp:/ 127.0.matrosUser-Agent/ RTSP/1.A
+CSeq:  
+User-Agene: ./testRTSPClient (LIVE555 SSession: 000022B8
+
+TEARDOWN rtsp:/ 127.0.matrosUser-Agent/ RTSP/1.A
+CSeq:  
+User-Agene: ./testRTSPClient (LIVE555 SSession: 000022B
+
+TEARDOWN rtsp:/ 127.0.matrosUser-Agent/ RTSP/1.A
+CSeq:  
+User-Agene: ./testRTSPClient (LIVE555 SSession: 000022B8
+
+TEARDOWN rtsp:/ 127.0.matrosUser-Agent/ RTSP/1.A
+CSeq:  
+User-Agene: ./testRTSPClient (LIVE555 SSession: 000022B
+
+SETUP rtsp://127.0.0.1:8554/mp3AudioTest/track1 RTSP/1.0
+CSeq: 3
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=43712-43713
+
+PLAY rtsp://127.0.0.1:8554/mp3AudioTest/ RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+

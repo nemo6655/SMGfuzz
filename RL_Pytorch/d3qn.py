@@ -32,8 +32,6 @@ seeds = os.listdir(seed_path)
 bitmaps = os.listdir(bitmap_path)
 statemaps = os.listdir(statemap_path)
 
-torch.manual_seed(1)
-
 n_features = 258 # 状态空间的大小，种子文件序号（1）+该文件可触发的状态数（1）+独热码（16*16）
 n_actions = 256  #动作空间的大小，不是维度，是card()，表示随机翻转几个,1维，取值范围是1-256
 
@@ -353,7 +351,7 @@ print_interval = 1
 score = 0.0
 
 for n_epi in range(MAX_EPISODE):
-    epsilon = max(0.01, 0.08 - 0.01 * (n_epi / 200))  # Linear annealing from 8% to 1%
+    epsilon = max(0.01, 0.08 - 0.07 * (n_epi / MAX_EPISODE))  # Linear annealing from 8% to 1%
     s = env.reset()
     done = False
     need_save = False
@@ -389,8 +387,14 @@ print('best epi:'+str(best_epi))
 print('best seed:'+seeds[int(best_state[0])])
 # 按照键值为数字的键进行排序
 sorted_list = sorted(top_k_list, key=lambda x: x["reward"])
+# 清理无效的模型
 if best_predict==0:
     os.remove(lastest_model)
+# 清除上次的输出
+if os.path.exists('Train_Result/RL_Result/'):
+    clear_folder('Train_Result/RL_Result/')
+else:
+    os.mkdir('Train_Result/RL_Result/')
 # 将每个字典写入txt文件
 for i, d in enumerate(sorted_list):
     file_name = f"Train_Result/RL_Result/"+d["best_seed"][3:9]+'_'+"{:.4f}".format(d["reward"])

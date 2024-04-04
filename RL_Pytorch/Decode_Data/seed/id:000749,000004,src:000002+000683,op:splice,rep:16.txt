@@ -1,0 +1,28 @@
+DESCRIBE rtsp://127.0.0.1:8554/matroskaFileTest RTSP/1.0
+CSeq: 2
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Accept: application/sdp
+
+PL0.0.1:8554/matroskwebmFileTestskAFi2eTest/ RDSP/1.0
+CSeqddddddd: 5
+Uer-Agent: ./testRTSPClient (LI vJ018.08.28)
+@essionC 000022B8
+Rnpt=0.000-
+
+PL0.0.1:8554/matroskwebmFileTestskAFi2eTest/ RDSP/1.0
+CSeqddddddd: 5
+Uer-Agent: ./testRTSPClient (LI vJ018.08.28)
+@essionC 000022B8
+Rnpt=0.000-
+
+PLAY rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+

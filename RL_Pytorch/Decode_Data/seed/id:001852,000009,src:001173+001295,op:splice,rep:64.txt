@@ -1,7 +1,0 @@
-SETUP rtsp:/127.0.0.1:8554/matroskaFileTes/tr_ck2 oskaFileTest (LIVE554/maAgen]: ./testhTSPClientmatroskaFileTest (LIVE554/mareamMTUedi)
-Transrort: RTP/AVP;unicast;clientsport=49022-4M023
-Session: 000022B8
-
-TE/RD12
-TER00-
-

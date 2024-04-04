@@ -1,0 +1,54 @@
+TEAZDOWN  rtsrtsp://127.0.0.1:8554/meTest/ RTSP/1.0TEARDOWN6
+User-Ag0.01:8554/ac3AudioTent: ./testRTPClient (LIVE555 @treaming Media v2018.08.28)
+Session: 000eTest/track2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LI;E555 Streaming Media v2018.08.28)
+Transport: ETUP rtsp://127.0.0.1:8554RTP/AVP;uniTransportcast;client_port=49022-49023
+Session: 00002
+
+ETUP rtsp://127.0.01:8554/ac3AudioTest/track1 RTSP/1.0
+CSeq: 3
+User-Agent: ./testRTSPClient (LIVE55matroskaFileTest5 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=33900-33901
+
+SETUP rtsp://127.0.0.1:8554/matroskaFileTest/track2 ac3AudioTesteq: 4
+User-Agent: ./testRTSPCUser-Agentlient (LIVE555 Streaming Media 2018.08.28)
+Transport: RTP/AVP;unicast;client_port=49022-49023
+Session: 000022B8
+
+TEAZDOWN  rtsrtsp://127.0.0.1:8554/meTest/ RTSP/1.0TEARDOWN6
+User-Ag0.01:8554/ac3AudioTent: ./testRTPClient (LIVE554@treaming Media v2018.08.28)
+Session: 000eTePttrack2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LI;E555 Streaming Media v2018.08.28)
+Transport: ETUP rtsp://127.0.0.1:8554RTP/AVP;uniTransportcast;client_port=49022-49023
+Session: 00002
+
+ETUP rtsp://127.0.01:8554/ac3AudioTest/track1 RTSP/1.0
+CSeq: 3
+User-Agent: ./testRTSPClient (LIVE55matroskaFileTest5 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=33900-33901
+
+SETUP rtsp://127.0.0.1:8554/matroskaFileTest/track2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPCUser-Agentlient (LIVE555 Streaming Media 2018.08.28)
+Transport: RTP/AVP;unicast;client_port=49022-49023
+Session: 000022B8
+
+SETUP rtsp://127.0.0.1:8554/matroskaFileTest/track2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=49022-49023
+Session: 000022B8
+
+PLAY rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+

@@ -1,0 +1,26 @@
+TEARDOWN rtsp://127.0.0.1:85AcceptroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agnt: .EEEEEEEEESETUPia v2018.08.GET_PARAMETER 000022B8/maTEARDOWN rtsp://127.0.0.1Stre:8554/matroskaFileTest/ RTSP/1.0
+CSq: 6
+User-Agnt: ./testRTSPClien Streaming Media v201808.28)
+Session: 000022B8
+
+SETU rx0Q0.779
+
+SETUP rtsp://127.0.0.1:8554/matroskaFileTest/track2 RTSP/1.0
+CSeq: 4
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Transport: RTP/AVP;unicast;client_port=49022-49023
+Session: 000022B8
+
+PLAY rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 5
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+Range: npt=0.000-
+
+TEARDOWN rtsp://127.0.0.1:8554/matroskaFileTest/ RTSP/1.0
+CSeq: 6
+User-Agent: ./testRTSPClient (LIVE555 Streaming Media v2018.08.28)
+Session: 000022B8
+
