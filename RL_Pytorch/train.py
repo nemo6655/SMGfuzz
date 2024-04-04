@@ -11,23 +11,14 @@ from sklearn.decomposition import KernelPCA
 os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #torch.set_printoptions(threshold=sys.maxsize) #使print显示完全
+random.seed()
+np.random.seed()
+torch.manual_seed(torch.initial_seed())
+SUT = sys.argv[1]
 # 获取当前时间
 current_time = datetime.now()
 # 将当前时间格式化为字符串
 time_str = current_time.strftime('%Y_%m_%d_%H%M%S')
-
-# 绘制loss损失函数（保存文件名包含时间）
-def plot_loss(train_loss, test_loss):
-    x = range(1, len(train_loss) + 1)
-    plt.plot(x, train_loss, label='Train Loss')
-    plt.plot(x, test_loss, label='Test Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.grid(1, linestyle='--')
-    plt.savefig('Train_Result/fig/loss_'+time_str+'.pdf', format='pdf')
-    plt.close()
-    
 
 #添加高斯白噪声的函数   
 def add_noise(matrix, mean, std):
@@ -36,9 +27,9 @@ def add_noise(matrix, mean, std):
     return noisy_matrix.astype(int)
 
 # 设置文件夹的路径
-folder1_path = "Decode_Data/seed_vec/"
-folder2_path = "Decode_Data/statemap/"
-folder3_path = "Decode_Data/bitmap/"
+folder1_path = 'Decode_Data/'+SUT+'/seed_vec/'
+folder2_path = 'Decode_Data/'+SUT+'/statemap/'
+folder3_path = 'Decode_Data/'+SUT+'/bitmap/'
 
 # 定义网络架构
 class MyNet(nn.Module):
@@ -132,7 +123,7 @@ for file2 in folder2_files:
             train_loader.append((file1_data,file2_data,file3_data))
 
 
-train_data, test_data = split_dataset(train_loader, 0.9) #train:test=9:1
+train_data, test_data = split_dataset(train_loader, 0.9) #train:test
 
 print("train:"+str(len(train_data))+",test:"+str(len(test_data)))
 
@@ -174,13 +165,11 @@ for epoch in range(num_epochs):
     print('Epoch [{}/{}], TrainLoss: {:.5f}, TestLoss: {:.5f}'.format(epoch+1, num_epochs, running_loss / len(train_data),testing_loss / len(test_data)))
 
 #保存参数
-torch.save(net.state_dict(), 'Train_Result/model/model_'+time_str+'.pth')
+torch.save(net.state_dict(), 'Train_Result/'+SUT+'/model/model_'+time_str+'.pth')
 print("------Model has been Saved------")
-#绘制并保存图像
-#plot_loss(train_loss, test_loss)
 #保存loss
 #loss_data = np.column_stack((np.array(train_loss), np.array(test_loss)))
-#np.savetxt('Train_Result/loss/'+time_str+'.txt', loss_data, delimiter=' ', fmt='%.4f')
+#np.savetxt('Train_Result/'+SUT+'/loss/'+time_str+'.txt', loss_data, delimiter=' ', fmt='%.4f')
 
 
 

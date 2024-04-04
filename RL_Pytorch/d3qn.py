@@ -17,15 +17,18 @@ gamma = 0.98
 buffer_limit = 50000
 batch_size = 32
 MAX_EPISODE = 100
-
+random.seed()
+np.random.seed()
+torch.manual_seed(torch.initial_seed())
 #考虑到对一个新的全局bitmap,前几次（普通）变异也会快速覆盖很多边，而后续（哪怕是精彩的）变异也只会新增少量的边，符合指数函数规律，需要加权重来计算奖励。
 #参数由find_eps_reward_law.py得到
 n_epi_a = 1/2.06457084e+03
 n_epi_b = 3.10658261e-02
 #文件夹路径
-seed_path = 'Decode_Data/seed_vec'
-bitmap_path = 'Decode_Data/bitmap'
-statemap_path = 'Decode_Data/statemap'
+SUT = sys.argv[1]
+seed_path = 'Decode_Data/'+SUT+'/seed_vec'
+bitmap_path = 'Decode_Data/'+SUT+'/bitmap'
+statemap_path = 'Decode_Data/'+SUT+'/statemap'
 
 #获取seed\bitmap\statemap列表
 seeds = os.listdir(seed_path)
@@ -343,7 +346,7 @@ trainer = Dueling_DQN()
 #创建网络，并且读取训练好的数据
 net = MyNet()
 
-directory = 'Train_Result/model'  # 替换为实际的目录路径
+directory = 'Train_Result/'+SUT+'/model'  # 替换为实际的目录路径
 lastest_model = get_nearest_file(directory)
 net.load_state_dict(torch.load(lastest_model))
 
@@ -391,13 +394,14 @@ sorted_list = sorted(top_k_list, key=lambda x: x["reward"])
 if best_predict==0:
     os.remove(lastest_model)
 # 清除上次的输出
-if os.path.exists('Train_Result/RL_Result/'):
-    clear_folder('Train_Result/RL_Result/')
-else:
-    os.mkdir('Train_Result/RL_Result/')
+else: 
+    if os.path.exists('Train_Result/'+SUT+'/RL_Result/'):
+        clear_folder('Train_Result/'+SUT+'/RL_Result/')
+    else:
+        os.mkdir('Train_Result/'+SUT+'/RL_Result/')
 # 将每个字典写入txt文件
 for i, d in enumerate(sorted_list):
-    file_name = f"Train_Result/RL_Result/"+d["best_seed"][3:9]+'_'+"{:.4f}".format(d["reward"])
+    file_name = f"Train_Result/"+SUT+"/RL_Result/"+d["best_seed"][3:9]+'_'+"{:.4f}".format(d["reward"])
     state_list = d["best_state"].astype(int)
     for j in range(0,len(state_list)):
         if state_list[j]==1:

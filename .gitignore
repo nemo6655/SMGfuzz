@@ -28,6 +28,4 @@ afl-llvm-rt.o
 
 #记录训练过程的信息
 RL_Pytorch/Decode_Data/
-RL_Pytorch/Train_Result/fig/
-RL_Pytorch/Train_Result/loss/
-RL_Pytorch/Train_Result/RL_Result/
+RL_Pytorch/Train_Result/

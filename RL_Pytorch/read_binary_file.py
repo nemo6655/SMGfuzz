@@ -2,6 +2,7 @@ import struct
 import numpy as np
 import os
 import codecs
+import sys
 def clear_folder(folder_path):
     for filename in os.listdir(folder_path):
         file_path = os.path.join(folder_path, filename)
@@ -24,24 +25,25 @@ def generate_matrix(binary_data):
     return matrix
  
 # 文件夹路径
-train_path = "/home/lddc/SHENYANLONG/live555/testProgs/output/train/"
-seed_path = "/home/lddc/SHENYANLONG/live555/testProgs/output/queue/"
+SUT = sys.argv[1]
+train_path = "/home/lddc/SHENYANLONG/live555/testProgs/output_"+SUT+"/train/"
+seed_path = "/home/lddc/SHENYANLONG/live555/testProgs/output_"+SUT+"/queue/"
 
 #清空之前的结果
-if os.path.exists('Decode_Data/bitmap/'):
-    clear_folder('Decode_Data/bitmap/')
+if os.path.exists('Decode_Data/'+SUT+'/bitmap/'):
+    clear_folder('Decode_Data/'+SUT+'/bitmap/')
 else:
-    os.mkdir('Decode_Data/bitmap/')
+    os.mkdir('Decode_Data/'+SUT+'/bitmap/')
 
-if os.path.exists('Decode_Data/statemap/'):
-    clear_folder('Decode_Data/statemap/')
+if os.path.exists('Decode_Data/'+SUT+'/statemap/'):
+    clear_folder('Decode_Data/'+SUT+'/statemap/')
 else:
-    os.mkdir('Decode_Data/statemap/')
+    os.mkdir('Decode_Data/'+SUT+'/statemap/')
 
-if os.path.exists('Decode_Data/seed/'):
-    clear_folder('Decode_Data/seed/')
+if os.path.exists('Decode_Data/'+SUT+'/seed/'):
+    clear_folder('Decode_Data/'+SUT+'/seed/')
 else:
-    os.mkdir('Decode_Data/seed/')
+    os.mkdir('Decode_Data/'+SUT+'/seed/')
 
 # 获取文件夹中的所有文件名
 train_names = os.listdir(train_path)
@@ -58,7 +60,7 @@ for file_name in train_names:
             matrix = np.frombuffer(binary_data, dtype=np.uint8)
             # 输出矩阵数据
             matrix = matrix.reshape((256, 256))
-            np.savetxt('Decode_Data/bitmap/'+file_name+'.txt', matrix, fmt='%d')
+            np.savetxt('Decode_Data/'+SUT+'/bitmap/'+file_name+'.txt', matrix, fmt='%d')
             #print(file_name+'已解析')
     if file_name.startswith("statemap"):
         # 构建文件的完整路径
@@ -79,7 +81,7 @@ for file_name in train_names:
                 count = count + 1
             result = np.array(result).reshape((16,16))
             result[0,0] = 1
-            np.savetxt('Decode_Data/statemap/'+file_name+'.txt', result, fmt='%d')
+            np.savetxt('Decode_Data/'+SUT+'/statemap/'+file_name+'.txt', result, fmt='%d')
             #print(file_name+'已解析')
 print('------Statemaps and Bitmaps have been Decoded------')
 for file_name in seed_names:
@@ -89,7 +91,7 @@ for file_name in seed_names:
             binary_data = file.read()
             decoded_text = codecs.decode(binary_data, 'ascii', 'ignore')
 
-        with open('Decode_Data/seed/'+file_name+'.txt', 'w', encoding='ascii') as file:
+        with open('Decode_Data/'+SUT+'/seed/'+file_name+'.txt', 'w', encoding='ascii') as file:
             file.write(decoded_text)
         #print(file_name+'已解析')
 print('------Seed Files have been Decoded------')
