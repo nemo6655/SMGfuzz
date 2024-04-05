@@ -19,7 +19,11 @@ def main():
     # 解析命令行参数
     args = parser.parse_args()
     # 源文件路径
-    source_file = '/home/lddc/SHENYANLONG/'+args.SUT+'/testProgs/output_'+args.SUT+'_'+args.ALG+'/fuzzer_stats'
+    if args.SUT == 'live555':
+        source_file = '/home/lddc/SHENYANLONG/'+args.SUT+'/testProgs/output_'+args.SUT+'_'+args.ALG+'/fuzzer_stats'
+        
+    if args.SUT == 'lightftp':  
+        source_file = '/home/lddc/SHENYANLONG/LightFTP/Source/Release/output_'+args.SUT+'_'+args.ALG+'/fuzzer_stats'
     # 目标文件夹路径
     current_time_s = time.strftime('%m%d%H')
     destination_folder = '/home/lddc/SHENYANLONG/fuzz_stats/'+args.SUT+'_'+args.ALG+'_'+current_time_s

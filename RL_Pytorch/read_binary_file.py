@@ -26,8 +26,8 @@ def generate_matrix(binary_data):
  
 # 文件夹路径
 SUT = sys.argv[1]
-train_path = "/home/lddc/SHENYANLONG/live555/testProgs/output_"+SUT+"/train/"
-seed_path = "/home/lddc/SHENYANLONG/live555/testProgs/output_"+SUT+"/queue/"
+train_path = "/home/lddc/SHENYANLONG/live555/testProgs/output_"+SUT+"_RLGfuzz/train/"
+seed_path = "/home/lddc/SHENYANLONG/live555/testProgs/output_"+SUT+"_RLGfuzz/queue/"
 
 #清空之前的结果
 if os.path.exists('Decode_Data/'+SUT+'/bitmap/'):
