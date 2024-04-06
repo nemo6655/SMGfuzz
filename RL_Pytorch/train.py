@@ -93,9 +93,14 @@ net = MyNet()
 net.to(device)
 # 定义损失函数和优化器
 criterion = nn.BCELoss().to(device)
-optimizer = optim.Adam(net.parameters(), lr=0.001)
+#对于不同目标，超参数不同
+if SUT == "lightftp":
+    optimizer = optim.Adam(net.parameters(), lr=0.003)
+    num_epochs=150
 
-num_epochs=50
+if SUT == "live555":
+    optimizer = optim.Adam(net.parameters(), lr=0.005)
+    num_epochs=100
 
 train_loader = []
 # 获取文件夹1中的所有txt文件

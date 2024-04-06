@@ -199,7 +199,7 @@ class Fuzzenv():
 
         #随机生成新状态，在可能触发的位置里，随机选择若干个状态，state_num是全部可能触发状态的数量
         next_state = self.current_state
-        random_count = random.randint(1, action)  # 生成1到state_num之间的随机个数
+        random_count = random.randint(1, min(action,20))  # 生成1到state_num之间的随机个数
         random_indices = np.random.choice(range(2, state_num+2), random_count, replace=False)  # 随机选择索引位置
         next_state[random_indices] = 1 - next_state[random_indices] # 将选中的索引位置的值翻转
 
@@ -227,7 +227,7 @@ class Fuzzenv():
                 return self.current_state, reward, False
 
             else:
-                random_count = random.randint(1, action)  # 生成1到state_num之间的随机个数
+                random_count = random.randint(1, min(action,20))  # 生成1到state_num之间的随机个数
                 random_indices = np.random.choice(range(2, state_num+2), random_count, replace=False)  # 随机选择索引位置
                 next_state[random_indices] = 1 - next_state[random_indices] # 将选中的索引位置的值翻转
                 next_predict = self.pred_bitmap(choice_seed,next_state)
@@ -334,7 +334,7 @@ class Dueling_DQN:
         coin = random.random()
         #如果是随机选择动作
         if coin < epsilon:
-            random_action = np.random.randint(1, int(obs[1]))  # 生成1到state_num之间的随机个数,randint是左闭右闭的！！！
+            random_action = np.random.randint(1, min(int(obs[1]),20))  # 生成1到state_num之间的随机个数,randint是左闭右闭的！！！
             return random_action
         else: #按照网络的估计来选择动作
             out = self.evaluate_net(obs)
@@ -393,8 +393,7 @@ sorted_list = sorted(top_k_list, key=lambda x: x["reward"])
 # 清理无效的模型
 if best_predict==0:
     os.remove(lastest_model)
-# 清除上次的输出
-else: 
+else: # 只有有东西去写，才清除上次的输出
     if os.path.exists('Train_Result/'+SUT+'/RL_Result/'):
         clear_folder('Train_Result/'+SUT+'/RL_Result/')
     else:
