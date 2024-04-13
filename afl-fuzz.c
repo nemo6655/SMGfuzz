@@ -7663,7 +7663,6 @@ havoc_stage:
     stage_cur_val = use_stacking;
 
     for (i = 0; i < use_stacking; i++) {
-//TODO：这里是否需要针对性增加变异方法？
       switch (UR(15 + 2 + (region_level_mutation ? 4 : 0))) {
 
         case 0:
@@ -9930,10 +9929,7 @@ int main(int argc, char** argv) {
     
     //SMGFuzz:statemap模式循环
     if(seed_selection_algo == STATE_MAP){
-      //TODO:在一轮测试中，需要完成一次bitmap的覆盖，从bitmap对应的statemap中寻找能够覆盖当前bitmap的所有状态集，组成测试队列
-      if(state_map_count == 0){
-        PFATAL("No state map has been detected. Server responses are likely empty!");
-      }
+
       while(1){
         u8 skipped_fuzz;
         struct queue_entry *selected_seed = NULL;
