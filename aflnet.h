@@ -38,6 +38,10 @@ typedef struct {
   message_t * Mn;     //Message n
   unsigned int Rn;   //Response n
   u32 seeds_count;
+  u32 fuzzs;
+  u32 paths_discovered;
+  u32 score;
+  u32 selected_times;
   u8 point_type;
   struct state_point_t *state_zero_next;
   u32 point_hash;

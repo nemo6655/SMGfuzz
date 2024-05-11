@@ -444,6 +444,8 @@ u32 kl_start_id = 0;
 u32 kl_end_id = 0;
 u32 state_zero_count = 0;
 u32 state_list_id_to_fuzz = 0;//state_list中的节点id，用于变异时选择变异节点
+u32 state_map_id_to_fuzz = 0;//statemap中的节点id，用于变异时选择变异节点
+
 u32 state_map_count = 0;//statemap中的节点数量
 state_point_t *state_zero_top = NULL;
 state_point_t *state_zero = NULL;
@@ -486,6 +488,9 @@ struct state_point_t *init_state_point(){
   m->seeds       = NULL;
   m->seeds_count = 0;
   m->is_fuzzed   = 0;
+  m->fuzzs       = 0;
+  m->score       = 0;
+  m->selected_times = 0;
   return m;
 }
 
@@ -550,11 +555,11 @@ void add_point_to_statemap(message_t * Mn, unsigned int Rn, message_t * Mn_1, un
   k = kh_put(sm, khsm_state_map, state_map_count, &discard);
   kh_value(khsm_state_map, k) = sp;
 
-  if(state_map_count >255){
-    int smc = state_map_count/256;
-    state_map[smc/16][smc%16] = sp;
+  if(state_map_count >STATE_MAP_SIZE){
+    int smc = state_map_count/STATE_MAP_SIZE;
+    state_map[smc/STATE_MAP_SIZE_POW2][smc%STATE_MAP_SIZE_POW2] = sp;
   }else{
-    state_map[state_map_count/16][state_map_count%16] = sp;
+    state_map[state_map_count/STATE_MAP_SIZE_POW2][state_map_count%STATE_MAP_SIZE_POW2] = sp;
   }
   
 }
@@ -670,8 +675,10 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
     }
   }
   if(q->state_list_tail){
-    q->state_list_tail->message_end = 1;
-    q->state_sequence_count++;
+    if(q->state_list_tail->message_end == 0){
+      q->state_list_tail->message_end = 1;
+      q->state_sequence_count++;
+    }
   }
 
   q->unfuzzed_state_count = q->state_count;
@@ -679,7 +686,27 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
 }
 //SMGFuzz: 将POINT_TO_ADD的state_point添加到state_map中
 
+boolean is_state_point_favor(state_point_t * sp){
+  state_point_t * sp1 = NULL;
+  u32 state_scores[state_map_count];
+  for(int i = 1; i <= state_map_count; i++){
+    sp1 = state_map[i/STATE_MAP_SIZE_POW2][i%STATE_MAP_SIZE_POW2];
+    if(i == 1){
+      state_scores[i-1] = sp1->score;
+    } else{
+      state_scores[i-1] = state_scores[i-2] + sp1->score;
+    }
+  }
 
+  u32 randV = UR(state_scores[state_map_count-1]);
+
+  if (randV < state_scores[sp->id]){
+    return TRUE;
+  }else{
+    return FALSE;
+  }
+
+}
 
 
 
@@ -690,22 +717,36 @@ struct queue_entry *state_map_choose_seed(){
 
 };
 
-u32 state_map_choose_state_point(struct queue_entry * q){
+u32 state_map_choose_state_point(struct queue_entry * q, u8 state_map_favor){
   queue_states_list * qslit = NULL;
   u32 pre_qslit_message_end = 0;
+  state_point_t * sp = NULL;
+  qslit = q->state_list_head;
 
-
-  for(qslit = q->state_list_head; qslit!= NULL; qslit = qslit->next){
+  if(!q->state_list_head){
+    return 0;
+  }
+  for(int i = q->state_list_head->id; i <= q->state_list_tail->id; i++){
     if(qslit->sequence_id == q->construct_sequence_id){
       if(!qslit->is_fuzzed){
-        qslit->is_fuzzed++;
-        return qslit->id;
+        sp = qslit->state_point;          
+        sp->selected_times++;
+        state_map_id_to_fuzz = sp->id;
+        if(state_map_favor){
+          if(is_state_point_favor(sp)){
+            qslit->is_fuzzed++;
+            return qslit->id;
+          }
+        }else{
+          qslit->is_fuzzed++;
+          return qslit->id;
+        }
       }
       if(qslit->message_end && qslit->is_fuzzed){
         q->construct_sequence_id++;
       }
-      
     }
+    qslit = qslit->next;
   }
   if(q->construct_sequence_id == q->state_sequence_count){
     q->unfuzzed_state_count = 0;
@@ -761,10 +802,19 @@ klist_t(lms) *construct_kl_messages_from_queue_states_list(){
 }
 
 struct state_point_t * get_state_point(u32 state_id){
-
+  state_point_t * sp = NULL;
+  sp = state_map[state_id/STATE_MAP_SIZE_POW2][state_id%STATE_MAP_SIZE_POW2];
+  return sp;
 }
 
-void state_map_update_fuzz(unsigned int *state_sequence, unsigned int state_count){
+void state_map_update_fuzz(){
+  state_point_t * sp = NULL;
+  if(state_map_id_to_fuzz == 0){
+    return;
+  }
+  sp = get_state_point(state_map_id_to_fuzz);
+  sp->fuzzs++;
+  sp->score = ceil(1000 * pow(2, -log10(log10(sp->fuzzs + 1) * sp->selected_times + 1)) * pow(2, log(sp->paths_discovered + 1)));
 
 }
 
@@ -955,8 +1005,7 @@ void update_fuzzs() {
     }
   }
   if(state_selection_algo == STATE_MAP){
-    state_map_update_fuzz(state_sequence, state_count);
-    
+    state_map_update_fuzz();
   }
 
   ck_free(state_sequence);
@@ -1356,6 +1405,11 @@ void update_state_aware_variables(struct queue_entry *q, u8 dry_run)
     k = kh_get(hms, khms_states, target_state_id);
     if (k != kh_end(khms_states)) {
       kh_val(khms_states, k)->paths_discovered++;
+    }
+    if(state_map_id_to_fuzz){
+      state_point_t * sp = NULL;
+      sp = get_state_point(state_map_id_to_fuzz);
+      sp->paths_discovered++;
     }
   }
 
@@ -2564,14 +2618,14 @@ static void cull_queue(void) {
   q = queue;
 
   while (q) {
-    // if (state_selection_algo == STATE_MAP){
-    //   q->favored = 0; 
-    // }else{
-    //   if (!q->is_initial_seed)
-    //     q->favored = 0;
-    // }
-    if (!q->is_initial_seed)
-      q->favored = 0;
+    if (state_selection_algo == STATE_MAP){
+      q->favored = 0; 
+    }else{
+      if (!q->is_initial_seed)
+        q->favored = 0;
+    }
+    // if (!q->is_initial_seed)
+    //   q->favored = 0;
     q = q->next;
   }
 
@@ -9957,7 +10011,13 @@ int main(int argc, char** argv) {
             for(queue_states_list * qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next)
               qslit->is_fuzzed = 0;
           }
-          state_list_id_to_fuzz = state_map_choose_state_point(queue_cur);
+          if(queue_cycle>1){
+            state_list_id_to_fuzz = state_map_choose_state_point(queue_cur,1);
+          }else{
+            state_list_id_to_fuzz = state_map_choose_state_point(queue_cur,0);
+          }
+        }else{
+          state_map_id_to_fuzz = 0;
         }
         if(state_list_id_to_fuzz || queue_cur->to_add_list){
           skipped_fuzz = fuzz_one(use_argv);

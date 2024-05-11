@@ -331,8 +331,8 @@
 #define STATE_STR_LEN 12
 
 //define state_map size
-#define STATE_MAP_SIZE_POW2 16
-#define STATE_MAP_SIZE (1 << STATE_MAP_SIZE_POW2)
+#define STATE_MAP_SIZE_POW2 32
+#define STATE_MAP_SIZE      1024
 /* Maximum allocator request size (keep well under INT_MAX): */
 
 #define MAX_ALLOC           0x40000000
