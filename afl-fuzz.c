@@ -454,6 +454,7 @@ state_point_t *state_zero = NULL;
 khash_t(sm) *khsm_state_map;
 // klist_t(sl) *state_list;
 khash_t(phs32) *khs_point_hash;
+khash_t(phm) *khph_point_hash;
 
 
 
@@ -535,6 +536,15 @@ void add_point_to_queue_list(message_t * Mn, message_t * Mn_1, unsigned int Rn_1
 void add_point_to_statemap(message_t * Mn, unsigned int Rn, message_t * Mn_1, unsigned int Rn_1,struct queue_entry* q, u8 add_queue_type,u32 hashKey){
   int discard;
   khint_t k;
+
+  //The statemap is a fixed-size bitmap-like structure: slot [0][0] is reserved for
+  //POINT_ZERO (id 0), so at most STATE_MAP_SIZE-1 regular points (ids 1..STATE_MAP_SIZE-1)
+  //fit without overflowing the 2D array. Once full, stop growing: the transition is
+  //still recorded in khs_point_hash by the caller, so dedup keeps working.
+  if (state_map_count >= STATE_MAP_SIZE - 1) {
+    return;
+  }
+
   state_map_count++;
   state_point_t * sp = init_state_point();
   sp->id = state_map_count;
@@ -555,13 +565,12 @@ void add_point_to_statemap(message_t * Mn, unsigned int Rn, message_t * Mn_1, un
   k = kh_put(sm, khsm_state_map, state_map_count, &discard);
   kh_value(khsm_state_map, k) = sp;
 
-  if(state_map_count >STATE_MAP_SIZE){
-    int smc = state_map_count/STATE_MAP_SIZE;
-    state_map[smc/STATE_MAP_SIZE_POW2][smc%STATE_MAP_SIZE_POW2] = sp;
-  }else{
-    state_map[state_map_count/STATE_MAP_SIZE_POW2][state_map_count%STATE_MAP_SIZE_POW2] = sp;
-  }
-  
+  //Index by hashKey for O(1) dedup lookups in add_queue_to_state_map.
+  k = kh_put(phm, khph_point_hash, hashKey, &discard);
+  kh_value(khph_point_hash, k) = sp;
+
+  //state_map_count is now bounded by STATE_MAP_SIZE-1, so this indexing is always in-bounds.
+  state_map[state_map_count/STATE_MAP_SIZE_POW2][state_map_count%STATE_MAP_SIZE_POW2] = sp;
 }
 
 void add_point_to_zero(message_t * Mn, unsigned int Rn, struct queue_entry* q){
@@ -643,24 +652,19 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
         point_response_sequence[0] = state_sequence[message_count-1];
         point_response_sequence[1] = state_sequence[message_count];
         u32 hashKey = hash32(point_response_sequence, 2 * sizeof(unsigned int), 0);
-        if(kh_get(phs32, khs_point_hash, hashKey) != kh_end(khs_point_hash)){
+        //O(1) lookup by transition hash key (was an O(state_map_count) scan).
+        k = kh_get(phm, khph_point_hash, hashKey);
+        if(k != kh_end(khph_point_hash)){
           //state_map中已经存在该point
-          for(int i =0; i <= state_map_count; i++){
-            k = kh_get(sm, khsm_state_map, i);
-            if(k != kh_end(khsm_state_map)){
-              sp = kh_val(khsm_state_map, k);
-              if(sp->point_hash == hashKey){
-                if(!q->state_points[sp->id]){
-                  sp->seeds = (void **) ck_realloc (sp->seeds, (sp->seeds_count + 1) * sizeof(void *));
-                  sp->seeds[sp->seeds_count] = (void *)q;
-                  sp->seeds_count++;
-                  q->state_count++;
-                  q->unfuzzed_state_count++;
-                  q->state_points[sp->id] = sp;
-                  add_point_to_queue_list(m_prev, m, state_sequence[message_count], q, sp);
-                }
-              }
-            }
+          sp = kh_val(khph_point_hash, k);
+          if(!q->state_points[sp->id]){
+            sp->seeds = (void **) ck_realloc (sp->seeds, (sp->seeds_count + 1) * sizeof(void *));
+            sp->seeds[sp->seeds_count] = (void *)q;
+            sp->seeds_count++;
+            q->state_count++;
+            q->unfuzzed_state_count++;
+            q->state_points[sp->id] = sp;
+            add_point_to_queue_list(m_prev, m, state_sequence[message_count], q, sp);
           }
         }else{
           //state_map中不存在该point
@@ -674,6 +678,8 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
       }
     }
   }
+  if(point_response_sequence) ck_free(point_response_sequence);
+
   if(q->state_list_tail){
     if(q->state_list_tail->message_end == 0){
       q->state_list_tail->message_end = 1;
@@ -688,6 +694,7 @@ void add_queue_to_state_map(unsigned int *state_sequence,unsigned int state_coun
 
 boolean is_state_point_favor(state_point_t * sp){
   state_point_t * sp1 = NULL;
+  if (state_map_count == 0) return TRUE;
   u32 state_scores[state_map_count];
   for(int i = 1; i <= state_map_count; i++){
     sp1 = state_map[i/STATE_MAP_SIZE_POW2][i%STATE_MAP_SIZE_POW2];
@@ -698,9 +705,17 @@ boolean is_state_point_favor(state_point_t * sp){
     }
   }
 
-  u32 randV = UR(state_scores[state_map_count-1]);
+  u32 total = state_scores[state_map_count-1];
+  //No score information yet (state_map_update_fuzz has not run): accept the point
+  //instead of dividing by zero inside UR().
+  if (total == 0) return TRUE;
 
-  if (randV < state_scores[sp->id]){
+  u32 randV = UR(total);
+
+  //state_scores is 0-based while sp->id is 1-based: the cumulative score up to and
+  //including this point is state_scores[sp->id - 1]. (The original state_scores[sp->id]
+  //was both an off-by-one and an out-of-bounds read when sp->id == state_map_count.)
+  if (randV < state_scores[sp->id - 1]){
     return TRUE;
   }else{
     return FALSE;
@@ -713,47 +728,59 @@ boolean is_state_point_favor(state_point_t * sp){
 
 
 
-struct queue_entry *state_map_choose_seed(){
-
-};
-
 u32 state_map_choose_state_point(struct queue_entry * q, u8 state_map_favor){
   queue_states_list * qslit = NULL;
-  u32 pre_qslit_message_end = 0;
   state_point_t * sp = NULL;
-  qslit = q->state_list_head;
+  queue_states_list * fallback = NULL;
 
   if(!q->state_list_head){
     return 0;
   }
-  for(int i = q->state_list_head->id; i <= q->state_list_tail->id; i++){
-    if(qslit->sequence_id == q->construct_sequence_id){
-      if(!qslit->is_fuzzed){
-        sp = qslit->state_point;          
-        sp->selected_times++;
-        state_map_id_to_fuzz = sp->id;
-        if(state_map_favor){
-          if(is_state_point_favor(sp)){
-            qslit->is_fuzzed++;
-            return qslit->id;
-          }
-        }else{
+
+  for(qslit = q->state_list_head; qslit != NULL; qslit = qslit->next){
+    if(qslit->sequence_id != q->construct_sequence_id){
+      continue;
+    }
+    if(!qslit->is_fuzzed){
+      sp = qslit->state_point;
+      sp->selected_times++;
+      state_map_id_to_fuzz = sp->id;
+      if(state_map_favor){
+        if(is_state_point_favor(sp)){
           qslit->is_fuzzed++;
           return qslit->id;
         }
-      }
-      if(qslit->message_end && qslit->is_fuzzed){
-        q->construct_sequence_id++;
+        //Rejected by the favor heuristic; remember it as a fallback so the
+        //sequence still makes progress even if no point is favored.
+        if(!fallback) fallback = qslit;
+      }else{
+        qslit->is_fuzzed++;
+        return qslit->id;
       }
     }
-    qslit = qslit->next;
+    if(qslit->message_end && qslit->is_fuzzed){
+      q->construct_sequence_id++;
+    }
   }
+
   if(q->construct_sequence_id == q->state_sequence_count){
     q->unfuzzed_state_count = 0;
     q->construct_sequence_id = 0;
     q->was_fuzzed = 1;
     return 0;
   }
+
+  //Favor mode rejected every unfuzzed point in the current sequence. Fall back to
+  //the first one so the sequence still makes progress (previously this fell off the
+  //end of the function and returned garbage).
+  if(fallback){
+    state_point_t * fsp = fallback->state_point;
+    state_map_id_to_fuzz = fsp->id;
+    fallback->is_fuzzed++;
+    return fallback->id;
+  }
+
+  return 0;
 }
 
 
@@ -849,6 +876,7 @@ void destroy_ipsm()
   kh_foreach_value(khms_states, state, {ck_free(state->seeds); ck_free(state);});
   kh_destroy(hms, khms_states);
   kh_destroy(sm, khsm_state_map);
+  kh_destroy(phm, khph_point_hash);
 
   ck_free(state_ids);
 }
@@ -2782,6 +2810,7 @@ static void read_testcases(void) {
   if(state_selection_algo == STATE_MAP){
     khsm_state_map = kh_init(sm);
     khs_point_hash = kh_init(phs32);
+    khph_point_hash = kh_init(phm);
     //TODO:add other variables to init
   }
 
@@ -9986,9 +10015,8 @@ int main(int argc, char** argv) {
 
       while(1){
         u8 skipped_fuzz;
-        struct queue_entry *selected_seed = NULL;
         cull_queue();
-        
+
 
 
         if (!queue_cur) {
@@ -10005,7 +10033,6 @@ int main(int argc, char** argv) {
           }
         }
 
-        selected_seed = state_map_choose_seed();
         if(!queue_cur->to_add_list){
           if(queue_cur->unfuzzed_state_count == 0){
             for(queue_states_list * qslit = queue_cur->state_list_head; qslit!= NULL; qslit = qslit->next)

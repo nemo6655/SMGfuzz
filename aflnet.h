@@ -102,6 +102,9 @@ KLIST_INIT(sl, state_point_t *, state_point_t_freer)
 
 KHASH_INIT(sm, khint32_t, state_point_t *, 1, kh_int_hash_func, kh_int_hash_equal)
 
+// Map from a transition's hashKey to its state_point_t* for O(1) dedup lookups.
+KHASH_INIT(phm, khint32_t, state_point_t *, 1, kh_int_hash_func, kh_int_hash_equal)
+
 KHASH_SET_INIT_INT(hs32)
 
 KHASH_SET_INIT_INT(phs32)
